@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Environment variables
+.env
+Neo4j-d02e1ae0-Created-2025-11-03.txt
+data/.DS_Store

@@ -7,8 +7,16 @@ authors = [
     { name = "A Swarm of Ralf", email = "ralf@swarm-intelligence.nl" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "synalinks>=0.5.304",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.7,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
