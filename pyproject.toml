@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "A Swarm of Ralf", email = "ralf@swarm-intelligence.nl" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "dotenv>=0.9.9",
     "synalinks>=0.5.304",
