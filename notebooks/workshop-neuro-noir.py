@@ -11,6 +11,8 @@ def _(mo):
 
     Step into a world where classic whodunits meet modern AI: in this workshop, you’ll use neurosymbolic techniques to teach machines to reason about suspects, motives, alibis, and contradictions—step by step, and in the open.
 
+    ![spy](public/spy.jpg)
+
     ## Introduction
 
     In this hands-on session, we move beyond “the model just knows” and focus on **how** an AI arrives at its conclusions. You’ll build a reasoning pipeline that reads a mystery, extracts structured facts, and uses a knowledge graph plus logical rules to evaluate competing hypotheses about who could have done it.
@@ -468,7 +470,6 @@ def _(BaseModel, Field, Literal, Optional):
             None,
             description="Brief natural-language explanation of how the source text indicates this communication between the two Persons (e.g., a quote or summary).",
         )
-
     return (CommunicatedWith,)
 
 
@@ -865,6 +866,8 @@ def _(mo):
 
     **Hook your DSPy ReAct agent into a `marimo.ui.chat` widget** so you can talk to it naturally inside the notebook.
     ///
+
+    ![tools](public/tools.jpg)
     """)
     return
 
@@ -874,10 +877,10 @@ def _(mo):
     def my_agent_model(messages, config):
         # Each message has a `content` attribute, as well as a `role`
         # attribute ("user", "system", "assistant");
-    
+
         # agent logic here
         response = "My agent does nothing yet"
-    
+
         return response
 
 
