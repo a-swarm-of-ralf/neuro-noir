@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.17.7"
+__generated_with = "0.17.8"
 app = marimo.App(width="medium")
 
 
@@ -89,7 +89,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Tasks
@@ -98,13 +98,13 @@ def _(mo):
 
     Select one of the four cases to use in your workshop.
 
-    ### 2. Chunk the Text
-
-    Split the story into segments to process.
-
-    ### 3. Create Knowledge Schema
+    ### 2. Create Schema
 
     Create a schema for the knowledge graph.
+
+    ### 3. Chunk the Text
+
+    Split the story into segments to process.
 
     ### 4. Create Knowledge Graph
 
@@ -125,10 +125,113 @@ def _(mo):
     return
 
 
+@app.cell
+def _(mo):
+    run_test_neo4j = mo.ui.run_button(label="Test Database", kind="info", full_width=True)
+    run_test_dspy = mo.ui.run_button(label="Test Language Model", kind="info", full_width=True)
+    run_delete_neo4j = mo.ui.run_button(label="💀💀💀Delete Database 💀💀💀", kind="danger", full_width=True)
+
+
+
+    mo.md(f"""
+    ## Test Settings
+
+    Before running these tests, ensure your environment is configured.
+
+    /// details | Configure your .env
+        type: info
+
+    This notebook reads its settings from a .env file at the project root. Copy .env.example to .env and fill in the required keys. The example file shows the exact variable names you need to set, including:
+    - Neo4j connection settings (e.g., NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD)
+    - LLM provider configuration and API key (e.g., OPENAI_API_KEY or your chosen provider)
+
+    After editing .env, restart the kernel or re-run the setup cells so the changes take effect.
+    ///
+
+
+    We will be using <span data-tooltip="Neo4j is a native graph database that models data as nodes (entities) and relationships (edges), supports the Cypher query language, and excels at traversals, path finding, and knowledge-graph workloads.">Neo4j</span> in this workshop. Press the button below to test the database connection.
+    {run_test_neo4j}
+
+    We will be using <span data-tooltip="gpt-5 is an advanced large language model used in this workshop for reading, extraction, and step-by-step reasoning. Ensure your API credentials are configured.">gpt-5</span> for language understanding and extraction. Press the button below to test that your language model is configured and working.
+    {run_test_dspy}
+
+    /// admonition | 💀 Danger: Wipes Neo4j Database
+        type: danger
+
+    Pressing the button below will permanently DELETE the entire Neo4j database for this workshop — all nodes, relationships, metadata, and embeddings. Use this only if you need to start fresh after making a mess. There is no undo.
+    {run_delete_neo4j}
+    ///
+    """)
+    return run_delete_neo4j, run_test_dspy, run_test_neo4j
+
+
+@app.cell(hide_code=True)
+def _(cfg, mo, run_test_neo4j, verify_neo4j):
+    if run_test_neo4j.value:
+        try:
+            verify_neo4j(cfg)
+            mo.output.append(mo.md(f"""
+    /// details | ✅ Successfully connected to Neo4j
+        type: success
+    ✅ Yay, it worked. We have a connection!
+    ///
+            """))
+        except Exception as _e:
+            mo.output.append(mo.md(f"""
+    /// details | ❌ Failed to connect to Neo4j
+        type: danger
+    ❌ {_e}
+    ///
+            """))
+    return
+
+
+@app.cell(hide_code=True)
+def _(cfg, mo, run_test_dspy, verify_dspy):
+    if run_test_dspy.value:
+        try:
+            verify_dspy(cfg)
+            mo.output.append(mo.md(f"""
+    /// details | ✅ Successfully connected to LLM
+        type: success
+    ✅ Yay, it worked. We have a connection!
+    ///
+            """))
+        except Exception as _e:
+            mo.output.append(mo.md(f"""
+    /// details | ❌ Failed to connect to LLM
+        type: danger
+    ❌ {_e}
+    ///
+            """))
+    return
+
+
+@app.cell(hide_code=True)
+def _(cfg, mo, run_delete_neo4j, verify_dspy):
+    if run_delete_neo4j.value:
+        try:
+            verify_dspy(cfg)
+            mo.output.append(mo.md(f"""
+    /// details | ✅  Successfully deleted database
+        type: success
+    ✅ It's gone, jim!
+    ///
+            """))
+        except Exception as _e:
+            mo.output.append(mo.md(f"""
+    /// details | ❌ Failed to delete database
+        type: danger
+    ❌ {_e}
+    ///
+            """))
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Choose Your Case File
+    ## 1. Select a Case
 
     For this workshop, you’ll work with the **raw text** of a classic mystery and turn it into a structured, queryable case.
 
@@ -155,6 +258,11 @@ def _(mo):
     Pick **one** story to use as your case file and load it like this:
     ///
     """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
@@ -356,10 +464,11 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-    from neuro_noir.core.app import Application
+    from neuro_noir.core.config import Settings
+    from neuro_noir.core.connections import verify_neo4j, verify_dspy, connect_neo4j
 
-    app = Application()
-    return app, mo
+    cfg = Settings()
+    return cfg, mo, verify_dspy, verify_neo4j
 
 
 @app.cell(hide_code=True)

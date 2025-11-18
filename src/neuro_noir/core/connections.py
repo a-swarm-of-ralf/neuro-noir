@@ -54,6 +54,12 @@ async def connect_graphiti(cfg: Settings):
     return graphiti
 
 
+def delete_neo4j(cfg: Settings) -> None:
+    driver = connect_neo4j(cfg)
+    with driver.session() as session:
+        session.run("MATCH (n) DETACH DELETE n").consume()
+
+
 def verify_neo4j(cfg: Settings) -> None:
     try:
         driver = connect_neo4j(cfg)
