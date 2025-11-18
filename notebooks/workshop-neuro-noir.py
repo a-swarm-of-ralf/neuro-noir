@@ -285,7 +285,7 @@ def _(doc, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(f"""
     ## 3. Create Schema
@@ -425,7 +425,7 @@ def _(BaseModel, Field, Optional):
     return (Person,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     /// details | Best practices for defining edges (relationships) in Graphiti
@@ -503,7 +503,7 @@ def _(CommunicatedWith, Person):
     edge_type_map = {
         ("Person", "Person"): ["CommunicatedWith"]
     }
-    return
+    return edge_type_map, edge_types, entity_types
 
 
 @app.cell(hide_code=True)
@@ -568,7 +568,7 @@ def _(Document):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     ## 5. Generate Knowledge Graph
@@ -583,54 +583,327 @@ def _(mo):
 
 
 @app.cell
-async def _(add_episode, app, connect_graphiti, doc, mo):
+async def _(
+    add_episode,
+    app,
+    connect_graphiti,
+    doc,
+    edge_type_map,
+    edge_types,
+    entity_types,
+    mo,
+):
     chunks = ...  # Do chunking here..
     graphiti = connect_graphiti(app.cfg)
     async def _():
         for idx, chunk in enumerate(mo.status.progress_bar(chunks)):
-            result = await add_episode(graphiti, doc, chunk, idx)
+            result = await add_episode(graphiti, doc, chunk, idx, entity_types, edge_types, edge_type_map)
+
+    await _()
+    return chunks, graphiti
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    ## 6. Enhance Knowledge Graph
+
+    After generating your graph, open it in Neo4j Desktop and explore it interactively.
+    Click through different nodes and relationships to understand what has been created—and, just as importantly, what is missing.
+
+    During this inspection, you will likely notice that some expected entities or relationships are absent.
+    Part of this can be improved by refining your Entity and Edge definitions and descriptions.
+    However, some missing information is not directly stated in the source text. Graphiti focuses on extracting explicit facts and does not infer new ones.
+
+    A reasoning model—such as GPT-5—can infer additional facts that are implied but not written.
+    By integrating such reasoning into DSPy, we can generate new inferred knowledge and feed it back into Graphiti as additional episodes.
+
+    /// admonition | Excercise 5.
+
+    Create and run a DSPy model that derives additional facts and ingests them into the Knowledge Graph.
+
+    **Goal:**
+    - Use a reasoning LLM to infer missing facts from existing episodes.
+    - Generate new structured records that match your graph schema.
+    - Import these inferred facts back into Graphiti as new episode inputs.
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(dspy):
+    # This is just an example custimize it to your needs.
+    class InferConclusions(dspy.Signature):
+        """
+        Given a narrative episode text, infer additional facts and relationships
+        that are implied but not explicitly stated.
+
+        The output format must be structured as natural language paragraphs,
+        suitable for ingestion into Graphiti as new episodes.
+        """
+
+        episode_text: str = dspy.InputField(desc="Original episode text from which to infer missing knowledge")
+        conclusions: str = dspy.OutputField(
+            desc=(
+                "One or more natural language paragraphs describing inferred entities, "
+                "relationships, or facts not explicitly stated in the episode text. "
+                "Write as plain sentences that Graphiti can process as new input."
+            )
+        )
+    inferer = dspy.ChainOfThought(InferConclusions)
+    return (inferer,)
+
+
+@app.cell
+def _(chunks, inferer):
+    # Let's try it with the first chunk
+    inferer(episode_text=chunks[0])
+    return
+
+
+@app.cell
+async def _(
+    add_episode,
+    chunks,
+    doc,
+    edge_type_map,
+    edge_types,
+    entity_types,
+    graphiti,
+    inferer,
+    mo,
+):
+    async def _():
+        for idx, chunk in enumerate(mo.status.progress_bar(chunks)):
+            inferer_result = inferer(episode_text=chunk)
+            await add_episode(graphiti, doc, inferer_result.conclusions, idx, entity_types, edge_types, edge_type_map)
 
     await _()
     return
 
 
-@app.cell
-def _(mo):
-    mo.md("""
-    ## 6. Enhance Knowledge Graph
-
-    After generating you can explore the graph in Neo4J Desktop. Try clicking through the nodes and edges to see what
-    has been generated. And what is missing?
-    """)
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     ## 7. Query Knowledge Graph
+
+    Once your Knowledge Graph has been populated with extracted and inferred facts, the next step is to retrieve useful information from it.
+
+    Graphiti provides a **search-based API** rather than requiring you to write Cypher directly. The main entry point is the search method:
+
+    - `await graphiti.search(query)`
+    - `await graphiti.search(query, focal_node_uuid)`
+
+    Under the hood, Graphiti combines **semantic similarity** and **BM25** keyword search, then reranks results using **Reciprocal Rank Fusion (RRF)**. This is called Hybrid Search and is designed to return the most relevant facts (edges) for a natural-language query.
+
+    If you provide a focal_node_uuid of a specific entity, Graphiti additionally reranks results based on their graph distance to that node. This is called **Node Distance Reranking** and is particularly useful for _entity-centric_ questions (e.g. “What do we know about Elyra?”).
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    /// admonition | Exercise 6.
+
+    Create and run queries against your Knowledge Graph using Graphiti’s search API.
+
+    Tasks:
+
+    1. Basic hybrid search
+        - Pick a natural-language question about your story or domain.
+        - Call graphiti.search(query) and print the returned edge.fact strings.
+        - Inspect whether these facts match your expectations.
+    2. Entity-focused search
+        - Choose a specific entity (e.g. a main character, organization, or location).
+        - Obtain its node UUID (for example from a previous query or from your graph tooling).
+        - Call graphiti.search(query, focal_node_uuid) with the same query.
+        - Compare the ranking of results with the basic search: do you see more facts about that entity?
+    ///
+
+    ➡️ Make sure to take note of the exact output structure returned by `graphiti.search()`—you will need this format in the next exercise.
+    """)
+    return
+
+
+@app.cell
+def _(graphiti):
+    graphiti.search("What do we know about Sherlock Holmes?")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    ## 8. Create Agent
+
+    Up to this point, you have:
+
+    - Built and enriched a Knowledge Graph using Graphiti
+    - Queried it directly using `graphiti.search(...)`
+
+    Now it’s time to let a **DSPy agent** use the graph as part of its own reasoning.
+
+    In this section, we will build a **`dspy.ReAct` agent** that:
+
+    - Receives a **natural-language question**
+    - Thinks step-by-step (ReAct prompting)
+    - Calls `graphiti.search` as a **tool**, but *only when it decides that it needs the information*
+    - Integrates retrieved facts into its reasoning
+    - Produces a high-quality answer
+    - Runs inside a simple **chat loop**
+
+    This transforms your Knowledge Graph from a static resource into a **dynamic tool** that actively enhances model reasoning.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The agent becomes capable of:
+
+    - Looking up missing context
+    - Checking facts
+    - Combining retrieved graph data with its own reasoning
+    - Answering complex, multi-step questions grounded in your graph
+
+    A typical setup involves:
+
+    1. A **Signature** describing what the agent takes as input and returns as output
+    2. A **tool function** wrapping `graphiti.search`
+    3. A **ReAct agent** configured to use that tool
+    4. A **chat loop** letting you interact with the agent turn by turn
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    /// admonition | Exercise 7.
+    Create a **DSPy ReAct agent** that uses `graphiti.search` as a tool inside a chat loop.
+
+    **Tasks:**
+
+    1. **Define a Signature**
+       - Create a signature (e.g. `AnswerWithGraph`) with:
+         - `question: str` (input)
+         - `answer: str` (output)
+         - Optional: `chat_history: str` so the agent sees prior turns.
+
+    2. **Wrap Graphiti search as a tool**
+       - Implement a function like `graph_search_tool(query: str) -> str` that:
+         - Calls `graphiti.search(query)`
+         - Extracts `edge.fact` fields
+         - Returns them as a readable text block
+         - Includes a clear docstring (DSPy uses this to understand tool behavior)
+
+    3. **Instantiate a `dspy.ReAct` agent**
+       - Attach the tool to the agent via `tools=[...]`
+       - Ensure the agent uses your signature
+
+    4. **Build a simple chat loop**
+       - Prompt the user for input
+       - Pass the question (and history) to the agent
+       - Print the answer
+       - Append both user and agent messages to `history`
+
+    **Goal:**
+    By the end of this exercise, you will have a functioning **knowledge-augmented chat agent** that can decide on its own when to retrieve facts from your Knowledge Graph.
+
+    Make sure to pay attention to the **output format of `graphiti.search`**, since you will be feeding it directly into your agent’s reasoning.
+
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(asyncio, dspy, graphiti):
+    class ChatAgent(dspy.ChatSignature):
+        """
+        A multi-turn chat agent that can use tools and DSPy reasoning.
+        """
+        messages: dspy.Messages = dspy.InputField()
+        answer: str = dspy.OutputField()
+
+    def graph_search_tool(query: str) -> str:
+        """
+        Use graphiti.search (async) under the hood to retrieve relevant facts
+        from the Knowledge Graph for the given natural-language query.
+        Returns a concise textual summary of the most important facts.
+        """
+        async def _run() -> str:
+            edges = await graphiti.search(query)
+            return "\n".join(edge.fact for edge in edges)
+
+        return asyncio.run(_run())
+
+    agent = dspy.ReAct(
+        ChatAgent,
+        tools=[graph_search_tool],
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### 💬 Optional: Integrate Your Agent into a Marimo Chat Interface
+
+    If you’re running this project inside **Marimo**, you get access to a powerful UI feature:
+    **`marimo.ui.chat` — an interactive chat widget.**
+
+    This widget lets you embed a live conversational interface directly in your notebook.
+    Because the chat model function can run **async Python**, it can call `graphiti.search` naturally and integrate perfectly with your DSPy agent.
+
+    /// admonition | **Optional Final Exercise — Integrate Your ReAct Agent into a Marimo Chat Widget**
+
+    As a bonus challenge:
+
+    **Hook your DSPy ReAct agent into a `marimo.ui.chat` widget** so you can talk to it naturally inside the notebook.
+    ///
     """)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md("""
-    ## 8. Create Agent
-    """)
+    def my_agent_model(messages, config):
+        # Each message has a `content` attribute, as well as a `role`
+        # attribute ("user", "system", "assistant");
+    
+        # agent logic here
+        response = "My agent does nothing yet"
+    
+        return response
+
+
+    chat = mo.ui.chat(my_agent_model)
+
+    chat
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
 
     from typing import Optional, Literal
 
     from pydantic import BaseModel, Field
+    import dspy
+    import asyncio
 
     from neuro_noir.core.config import Settings
-    from neuro_noir.core.connections import verify_neo4j, verify_dspy, connect_neo4j, connect_graphiti
+    from neuro_noir.core.connections import (
+        verify_neo4j,
+        verify_dspy,
+        connect_neo4j,
+        connect_graphiti,
+    )
     from neuro_noir.datasets import list_datasets, load_dataset
     from neuro_noir.core.app import Application
     from neuro_noir.models.document import Document
@@ -645,7 +918,9 @@ def _():
         Optional,
         add_episode,
         app,
+        asyncio,
         connect_graphiti,
+        dspy,
         list_datasets,
         mo,
         verify_dspy,
