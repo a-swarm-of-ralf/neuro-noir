@@ -131,11 +131,11 @@ class Alibi(BaseModel):
         None,
         description="Text description of where the person claims to have been during the relevant event.",
     )
-    start_time: Optional[datetime] = Field(
+    start_time: Optional[str] = Field(
         None,
         description="Start of the time interval covered by the alibi, when it can be inferred.",
     )
-    end_time: Optional[datetime] = Field(
+    end_time: Optional[str] = Field(
         None,
         description="End of the time interval covered by the alibi, when it can be inferred.",
     )
@@ -176,11 +176,11 @@ class Means(BaseModel):
 class Opportunity(BaseModel):
     """Opportunity relationship connecting a person to an event they could realistically have carried out."""
 
-    window_start: Optional[datetime] = Field(
+    window_start: Optional[str] = Field(
         None,
         description="Earliest plausible time at which the person could have acted in relation to the event.",
     )
-    window_end: Optional[datetime] = Field(
+    window_end: Optional[str] = Field(
         None,
         description="Latest plausible time at which the person could have acted in relation to the event.",
     )
@@ -206,11 +206,11 @@ class Presence(BaseModel):
             "and 'visited' for more general or earlier visits."
         ),
     )
-    arrival_time: Optional[datetime] = Field(
+    arrival_time: Optional[str] = Field(
         None,
         description="Approximate time the person arrived at the location or event.",
     )
-    departure_time: Optional[datetime] = Field(
+    departure_time: Optional[str] = Field(
         None,
         description="Approximate time the person left the location or event.",
     )

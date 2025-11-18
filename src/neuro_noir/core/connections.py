@@ -46,7 +46,7 @@ async def connect_graphiti(cfg: Settings):
         model=cfg.LARGE_MODEL_NAME,
         small_model=cfg.SMALL_MODEL_NAME,
         temperature=1.0,
-        max_tokens=35000,
+        max_tokens=120000,
     )
     llm_client = OpenAIClient(config=llm_config)
     graphiti = Graphiti(cfg.NEO4J_URI, cfg.NEO4J_USERNAME, cfg.NEO4J_PASSWORD, llm_client=llm_client)

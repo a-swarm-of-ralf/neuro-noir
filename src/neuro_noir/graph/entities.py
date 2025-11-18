@@ -120,11 +120,11 @@ class Event(BaseModel):
         None,
         description="Narrative description of the event as inferred from the text.",
     )
-    start_time: Optional[datetime] = Field(
+    start_time: Optional[str] = Field(
         None,
         description="Approximate start time of the event when it can be inferred or is explicitly mentioned.",
     )
-    end_time: Optional[datetime] = Field(
+    end_time: Optional[str] = Field(
         None,
         description="Approximate end time of the event, if it spans a period of time.",
     )
@@ -174,7 +174,7 @@ class Evidence(BaseModel):
         None,
         description="Short explanation of what this evidence is and why it matters.",
     )
-    collected_at: Optional[datetime] = Field(
+    collected_at: Optional[str] = Field(
         None,
         description="Timestamp when the evidence is collected, if explicitly known.",
     )
