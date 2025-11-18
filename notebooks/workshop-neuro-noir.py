@@ -92,49 +92,28 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Tasks
+    ## Contents
 
-    ### 1. Select a Case
-
-    Select one of the four cases to use in your workshop.
-
-    ### 2. Create Schema
-
-    Create a schema for the knowledge graph.
-
-    ### 3. Chunk the Text
-
-    Split the story into segments to process.
-
-    ### 4. Create Knowledge Graph
-
-    Run your segements with teh schema to create the knowledge graph.
-
-    ### 5. Enhance Knowledge Base
-
-    Add some logic derivations to the knoweldge graph.
-
-    ### 6. Query the Knowledge Graph
-
-    Query the Knowledge Graph
-
-    ### 7. Create Reasoning Agent
-
-    Create an Agent that can use the Knowledge Graph to reason about the case.
+    1. **Test Settings**: Test your connections to the database and languge model.
+    1. **Select a Case**: Select one of the four cases to use in your workshop.
+    2. **Create Schema**: Create a schema for the knowledge graph.
+    3. **Chunk the Text**: Split the story into segments to process.
+    4. **Create Knowledge Graph**: Run your segements with the schema to create the knowledge graph.
+    5. **Enhance Knowledge Graph**: Add some logic derivations to the knoweldge graph.
+    6. **Query the Knowledge Graph**: Query the Knowledge Graph
+    7. **Create Reasoning Agent**: Create an Agent that can use the Knowledge Graph to reason about the case.
     """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     run_test_neo4j = mo.ui.run_button(label="Test Database", kind="info", full_width=True)
     run_test_dspy = mo.ui.run_button(label="Test Language Model", kind="info", full_width=True)
     run_delete_neo4j = mo.ui.run_button(label="💀💀💀Delete Database 💀💀💀", kind="danger", full_width=True)
 
-
-
     mo.md(f"""
-    ## Test Settings
+    ## 1. Test Settings
 
     Before running these tests, ensure your environment is configured.
 
@@ -166,10 +145,10 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(cfg, mo, run_test_neo4j, verify_neo4j):
+def _(app, mo, run_test_neo4j, verify_neo4j):
     if run_test_neo4j.value:
         try:
-            verify_neo4j(cfg)
+            verify_neo4j(app.cfg)
             mo.output.append(mo.md(f"""
     /// details | ✅ Successfully connected to Neo4j
         type: success
@@ -187,10 +166,10 @@ def _(cfg, mo, run_test_neo4j, verify_neo4j):
 
 
 @app.cell(hide_code=True)
-def _(cfg, mo, run_test_dspy, verify_dspy):
+def _(app, mo, run_test_dspy, verify_dspy):
     if run_test_dspy.value:
         try:
-            verify_dspy(cfg)
+            verify_dspy(app.cfg)
             mo.output.append(mo.md(f"""
     /// details | ✅ Successfully connected to LLM
         type: success
@@ -208,10 +187,10 @@ def _(cfg, mo, run_test_dspy, verify_dspy):
 
 
 @app.cell(hide_code=True)
-def _(cfg, mo, run_delete_neo4j, verify_dspy):
+def _(app, mo, run_delete_neo4j, verify_dspy):
     if run_delete_neo4j.value:
         try:
-            verify_dspy(cfg)
+            verify_dspy(app.cfg)
             mo.output.append(mo.md(f"""
     /// details | ✅  Successfully deleted database
         type: success
@@ -231,7 +210,7 @@ def _(cfg, mo, run_delete_neo4j, verify_dspy):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## 1. Select a Case
+    ## 2. Select a Case
 
     For this workshop, you’ll work with the **raw text** of a classic mystery and turn it into a structured, queryable case.
 
@@ -261,54 +240,278 @@ def _(mo):
     return
 
 
-@app.cell
-def _():
-    return
+@app.cell(hide_code=True)
+def _(list_datasets, mo):
+    cases_dropdown = mo.ui.dropdown(options=list_datasets(), value="the-adventure-of-the-retired-colourman", full_width=True)
+    run_load_case = mo.ui.run_button(label="Load!", kind="info", full_width=True)
 
-
-@app.cell
-def _(mo):
-    from neuro_noir.datasets import (
-        the_adventure_of_retired_colorman,
-        the_adventure_of_the_three_students,
-        the_five_orange_pips,
-        the_mysterious_affair_at_styles,
-    )
-
-    doc = the_adventure_of_retired_colorman()  # or any of the others
-    [first, *rest] = doc.content.split('\n\n')
-    exerpt = '\n\n'.join(rest[:10])[:560]
     mo.md(f"""
-    ### {doc.title}
+    #### Select Your Case
+
+    Select your case then press _'Load!'_.
+
+    {cases_dropdown}
+    {run_load_case}
+    """)
+    return cases_dropdown, run_load_case
+
+
+@app.cell(hide_code=True)
+def _(app, cases_dropdown, run_load_case):
+    doc = app.doc
+    if run_load_case.value:
+        doc = app.load_document(cases_dropdown.value)
+    return (doc,)
+
+
+@app.cell(hide_code=True)
+def _(doc, mo):
+    mo.md(f"""
+    #### Case: {doc.title}
 
     **id:** _"{doc.id}"_
 
-    /// details | {first}
-    {exerpt}
+    /// details | {doc.paragraphs[0]}
+
+    {doc.paragraphs[1]}
     ///
+
+    **Statistics:** 
+    - {len(doc.content)} characters
+    - {len(doc.chunks)} chunks
+    - {len(doc.paragraphs)} paragraphs
+    - {len(doc.annotations)} annotated paragraphs
     """)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(r"""
-    ## From Story to Episodes (Chunking / Segmentation)
+    mo.md(f"""
+    ## 3. Create Schema
 
-    Before we can extract entities and build a reasoning graph, we need to break the full story into **smaller, coherent pieces**. This step is often called **chunking** (yes, that’s a real and widely-used term), but you can also think of it as **segmenting** the story into **episodes**.
+    Define a concise Graphiti schema for your mystery: entity and relationship types, their properties, and constraints, so extracted facts land in a consistent Neo4j structure. Graphiti then validates, embeds, and stores nodes and edges.
 
-    /// admonition | Excercise 2.
+    A knowledge graph uses:
+    - Entities — things (people, locations, events, objects, organizations)
+    - Relations — how things connect (was at, knows, owns, sent, inherited from)
+    - Triples — subject–predicate–object, e.g.:
+      `Person B — was at — Café X`, `Person A — has motive — Victim`, `Letter — was sent to — Person C`
 
-    Write a function that takes a `Document` and returns a `list` of `Chunk` objects (e.g. `List[Chunk]`), where each chunk contains a meaningful slice of `doc.content`.
+    We store the graph in Neo4j and use Graphiti to:
+    - parse episode text with an LLM,
+    - extract entities and relations,
+    - write them with embeddings and metadata,
+    - enable search and reasoning.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    ### 3.1 Create Entities
+
+    Entities are the “things” in your mystery: people, places, objects, events, organizations, and evidence items. In Graphiti, you define these entities as structured data models. Once defined, Graphiti uses an LLM to extract instances of these models from text and writes them into Neo4j as nodes, with properties and embeddings.
+
+    /// details | Why Pydantic BaseModel?
+        type: info
+
+    - Structure and validation: Pydantic’s BaseModel lets you declare the shape and types of your entities (strings, ints, bools, enums, etc.) and validates values at runtime.
+    - Clear contracts for extraction: The model’s fields and types tell the LLM exactly what to look for and how to serialize it.
+    - Documentation-first prompts: Class docstrings and Field descriptions become the guidance text that Graphiti includes in LLM prompts, dramatically improving extraction quality and consistency.
+    ///
+
+
+    /// details | How your model text guides the LLM?
+        type: info
+
+    - Class docstring: Sets the overall purpose and scope of the entity. Use it to clarify what belongs here and what does not.
+    - Field descriptions: Tell the LLM what each attribute means, how to phrase it, when to use None, and any constraints (e.g., “choose from {suspect, victim, witness}”).
+    - Names and examples: Use precise names; where relevant, provide short examples in descriptions.
+    ///
+
+    /// details | Example: A well-documented Person entity
 
     ```python
-    class Chunk(BaseModel):
-        id: str          # e.g. f"{doc.id}-chunk-{i}"
-        order: int       # position in the story
-        title: str       # short label (optional)
-        text: str        # the actual content of this chunk
+    from typing import Optional, Literal
+    from pydantic import BaseModel, Field
+
+    class Person(BaseModel):
+        "\""A person involved in the detective case (suspect, victim, witness, investigator, or related party).
+
+        Include named individuals explicitly referenced in the text. Do not create generic people
+        (e.g., "the crowd") unless they act as a specific participant with a role in the case.
+        "\""
+
+        full_name: Optional[str] = Field(
+            None,
+            description="The person's full name as written in the text (e.g., 'Mr. Josiah Amberley')."
+        )
+        alias: Optional[str] = Field(
+            None,
+            description="Alternative name, nickname, or title (e.g., 'the retired colourman', 'Inspector')."
+        )
+        role_in_case: Optional[Literal["suspect", "victim", "witness", "investigator", "other"]] = Field(
+            None,
+            description="Primary role in the investigation. Choose one label that best fits the text evidence."
+        )
+        is_suspect: Optional[bool] = Field(
+            None,
+            description="True if the narrative treats this person as a suspect at any point; otherwise False."
+        )
     ```
     ///
+
+    /// details | Example: Location entity
+
+    ```python
+    class Location(BaseModel):
+        "\""A place referenced in the case (home, office, shop, train station, room, or outdoor site).
+
+        Prefer concrete, named locations. If a sub-area is important (e.g., 'the strong-room'), capture it.
+        "\""
+
+        name: str = Field(
+            ...,
+            description="Canonical name of the location as stated in the text (e.g., 'Camden House', 'Strong-room')."
+        )
+        address: Optional[str] = Field(
+            None,
+            description="Street address or descriptive locator if present (e.g., 'Little Ryder Street, Westminster')."
+        )
+        kind: Optional[Literal["residence", "business", "room", "public", "transport", "other"]] = Field(
+            None,
+            description="General category of the place to aid reasoning about access and movement."
+        )
+    ```
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    /// details | Best practices for defining entities
+        type: info
+
+    - Be specific and consistent: Use stable names and clear categories so the LLM doesn’t invent variants.
+    - Prefer Optional fields over guessing: If the text doesn’t provide a value, allow None rather than hallucination.
+    - Constrain with Literals where helpful: Small controlled vocabularies improve precision.
+    - Write actionable descriptions: Tell the LLM exactly what to extract, when to skip, and how to format.
+    - Include evidence later: We will link extracted entities to their source text (chunks) so you can trace every fact.
+
+    ///
+
+
+    /// admonition | Excercise 2.1.
+
+    Create Entities for your project.
+
+    - Start with a small set of core entities (Person, Location, Object/Event).
+    - Ensure each class has a concise docstring and each Field has a descriptive explanation.
+    - Reuse or adapt the Person model defined above in this notebook as your canonical Person entity.
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(BaseModel, Field, Optional):
+    class Person(BaseModel):
+        """A person involved in a detective case (suspect, victim, witness, investigator, or other role)."""
+
+        full_name: Optional[str] = Field(None, description="Full name of the person as mentioned in the materials.",)
+    return (Person,)
+
+
+@app.cell
+def _(mo):
+    mo.md("""
+    /// details | Best practices for defining edges (relationships) in Graphiti
+        type: info
+
+    - **Edge Types:** Use PascalCase for custom types (e.g., Employment, Partnership)
+    - **Attributes:** Use snake_case (e.g., start_date, employee_count)
+    - **Descriptions:** Be specific and actionable for the LLM
+
+    ///
+
+
+    /// admonition | Excercise 2.2.
+
+    Create Edges for your case in Graphiti.
+
+    - Identify 3–5 core relationships that matter for your case (e.g., `Person` -> `WorksAt` -> `Organization`, `Document` -> `Mentions` -> `Entity`, `Event` -> `OccursAt` -> `Location`).
+
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(BaseModel, Field, Literal, Optional):
+    class CommunicatedWith(BaseModel):
+        """Relationship indicating that one Person communicated with another Person."""
+
+        communication_type: Optional[
+            Literal["talked_to", "wrote_to", "shouted_at", "agreed_with", "disagreed_with"]
+        ] = Field(
+            None,
+            description=(
+                "Subtype of communication linking the two Persons. "
+                "Examples include direct conversation, shouting, or explicit agreement. "
+                "If the subtype is unknown, leave this as None."
+            ),
+        )
+        justification: Optional[str] = Field(
+            None,
+            description="Brief natural-language explanation of how the source text indicates this communication between the two Persons (e.g., a quote or summary).",
+        )
+
+    return (CommunicatedWith,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md("""
+    With the entities and edges defined, the next step is to build the relationship mapping that connects them.
+
+    /// admonition | Exercise 2.3.
+
+    Create the edge mapping for your Graphiti model.
+
+    - For each pair of entities, list the edge types that apply between them.
+    - If edges are directional, consider both directions (A → B and B → A).
+    - If no edges apply for a pair, use an empty list.
+
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(CommunicatedWith, Person):
+    entity_types = {
+        "Person": Person
+    }
+
+    edge_types = {
+        "CommunicatedWith": CommunicatedWith
+    }
+
+    edge_type_map = {
+        ("Person", "Person"): ["CommunicatedWith"]
+    }
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## 4. Chunking
+
+    Before we can extract entities and build a reasoning graph, we need to break the full story into **smaller, coherent pieces**. This step is often called **chunking** (yes, that’s a real and widely-used term), but you can also think of it as **segmenting** the story into **episodes**.
 
     /// details | Why chunking matters
         type: info
@@ -347,74 +550,32 @@ def _(mo):
 
     A good starting point for this workshop is: **paragraph-based with a soft size limit**, and iterate toward **scene-oriented** if time allows.
     ///
+
+    /// admonition | Excercise 3.
+
+    Write a function that takes a `Document` and returns a `list[str]` of _chunks_, where each chunk contains a meaningful slice of `doc.content`.
+
+    ///
     """)
     return
 
 
 @app.cell
-def _(app):
-    from neuro_noir.models.document import Document
-    from neuro_noir.models.chunk import Chunk
-
-    def do_the_chunking(doc: Document) -> list[Chunk]:
+def _(Document):
+    def do_the_chunking(doc: Document) -> list[str]:
+        # Your chunk logic here
         ...
-
-
-    app.register_chunker(do_the_chunking)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(r"""
-    ### Chunking Hints
+    mo.md("""
+    ## 5. Generate Knowledge Graph
 
-    /// details | Hint 1
-        type: info
+    /// admonition | Excercise 4.
 
-    ///
-
-    /// details | Hint 2
-        type: info
-
-    ///
-
-    /// details | Hint 3
-        type: info
-
-    ///
-
-    /// details | Solution
-        type: warn
-
-    ```python
-    from neuro_noir.models.document import Document
-    from neuro_noir.models.chunk import Chunk
-
-    MAX_CHUNK_SIZE = 800
-
-    def do_the_chunking(doc: Document) -> list[Chunk]:
-        chunks = []
-        chunk_content = "\"
-        paragraphs = doc.content.split('\n\n')
-
-        for paragraph in paragraphs:
-            if len(paragraph) + len(chunk_content) > MAX_CHUNK_SIZE:
-                chunks.append(Chunk(
-                    index=len(chunks),
-                    document=doc.id,
-                    title=f"Chunk {len(chunks) + 1}",
-                    content=chunk_content,
-                ))
-                chunk_content = paragraph
-            else:
-                chunk_content += "\n\n" + paragraph
-
-        return chunks
-
-
-    app.register_chunker(do_the_chunking)
-    ```
+    For each chunk ingest it into the database by calling the `neuro_noir.core.database.add_episode` function.
 
     ///
     """)
@@ -422,41 +583,40 @@ def _(mo):
 
 
 @app.cell
+async def _(add_episode, app, connect_graphiti, doc, mo):
+    chunks = ...  # Do chunking here..
+    graphiti = connect_graphiti(app.cfg)
+    async def _():
+        for idx, chunk in enumerate(mo.status.progress_bar(chunks)):
+            result = await add_episode(graphiti, doc, chunk, idx)
+
+    await _()
+    return
+
+
+@app.cell
 def _(mo):
-    mo.md(r"""
-    ## From Text to Knowledge Graph: Neo4j, Graphiti & Your Schema
+    mo.md("""
+    ## 6. Enhance Knowledge Graph
 
-    Now that you’ve split the story into episodes, the next step is to turn those episodes into a **knowledge graph** we can reason over.
+    After generating you can explore the graph in Neo4J Desktop. Try clicking through the nodes and edges to see what
+    has been generated. And what is missing?
+    """)
+    return
 
-    At its core, a knowledge graph is built from simple building blocks:
 
-    - **Entities**: the “things” in your world
-      e.g. people, locations, events, objects, organizations.
-    - **Relations** (edges): how those things are connected
-      e.g. *was at*, *knows*, *owns*, *sent*, *inherited from*.
-    - Together, these form **triples** of the form:
-      **subject – predicate – object**
-      e.g. `Person B — was at — Café X`,
-      `Person A — has motive — Victim`,
-      `Letter — was sent to — Person C`.
+@app.cell
+def _(mo):
+    mo.md("""
+    ## 7. Query Knowledge Graph
+    """)
+    return
 
-    We will store these entities and relations in **Neo4j**, a native graph database, and use **Graphiti** as the layer that:
 
-    - takes episode text,
-    - uses an LLM to extract entities and relations,
-    - writes them into Neo4j with embeddings and metadata,
-    - lets us search and reason over this structured representation.
-
-    To make this graph meaningful for our mystery domain, we won’t stick to only generic “Entity” and “RELATES_TO” nodes. Instead, we’ll define **custom types**, such as:
-
-    - `Person`, `Location`, `Event`, `Evidence`, `Alibi`
-    - edges like `WAS_AT`, `WITNESSED_BY`, `HAS_MOTIVE`, `USES_MEANS`, `CONTRADICTS`
-
-    In the next steps, you’ll:
-
-    1. Design a small domain schema that fits your chosen story.
-    2. Implement these as **custom entity and edge types** in Graphiti.
-    3. Use them to turn narrative episodes into a navigable, queryable case graph.
+@app.cell
+def _(mo):
+    mo.md("""
+    ## 8. Create Agent
     """)
     return
 
@@ -464,11 +624,33 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-    from neuro_noir.core.config import Settings
-    from neuro_noir.core.connections import verify_neo4j, verify_dspy, connect_neo4j
 
-    cfg = Settings()
-    return cfg, mo, verify_dspy, verify_neo4j
+    from typing import Optional, Literal
+
+    from pydantic import BaseModel, Field
+
+    from neuro_noir.core.config import Settings
+    from neuro_noir.core.connections import verify_neo4j, verify_dspy, connect_neo4j, connect_graphiti
+    from neuro_noir.datasets import list_datasets, load_dataset
+    from neuro_noir.core.app import Application
+    from neuro_noir.models.document import Document
+    from neuro_noir.core.database import add_episode
+
+    app = Application()
+    return (
+        BaseModel,
+        Document,
+        Field,
+        Literal,
+        Optional,
+        add_episode,
+        app,
+        connect_graphiti,
+        list_datasets,
+        mo,
+        verify_dspy,
+        verify_neo4j,
+    )
 
 
 @app.cell(hide_code=True)

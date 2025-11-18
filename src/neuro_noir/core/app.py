@@ -1,22 +1,15 @@
 from typing import Callable
-from graphiti_core import Graphiti
 from neuro_noir.core.config import Settings
-from neuro_noir.core.database import Database
-from neuro_noir.models.chunk import Chunk
 from neuro_noir.models.document import Document
+from neuro_noir.datasets import the_adventure_of_retired_colorman, load_dataset
 
 
 class Application:
     
     def __init__(self):
-        self.config = Settings()
-        self.graph = Database(self.config)
+        self.cfg = Settings()
+        self.doc = the_adventure_of_retired_colorman()
 
-    async def initialize(self):
-        await self.graph.initialize()
-
-    async def clear(self):
-        await self.graph.clear()
-
-    def register_chunker(self, chunker: Callable[[Document], list[Chunk]]):
-        self.chunker = chunker
+    def load_document(self, key: str) -> Document:
+        self.doc = load_dataset(key)
+        return self.doc

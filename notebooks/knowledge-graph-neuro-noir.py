@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.17.7"
+__generated_with = "0.17.8"
 app = marimo.App(width="medium")
 
 
@@ -261,16 +261,17 @@ def _(mo, neo4j_delete_btn, neo4j_delete_text):
 
 @app.cell
 def _(mo):
-    from neuro_noir.datasets import list_datasets
+    from neuro_noir.datasets import list_datasets, load_dataset
 
     cases_dropdown = mo.ui.dropdown(options=list_datasets(), value="the-adventure-of-the-retired-colourman", full_width=True)
+    run_load_case = mo.ui.run_button(label="Load!", kind="info", full_width=True)
     return (cases_dropdown,)
 
 
 @app.cell
 def _(mo):
-    load_case_button = mo.ui.run_button(label="Load!", kind="info")
-    return (load_case_button,)
+    run_load_case = mo.ui.run_button(label="Load!", kind="info", full_width=True)
+    return
 
 
 @app.cell
