@@ -189,10 +189,10 @@ def _(app, mo, run_test_dspy, verify_dspy):
 
 
 @app.cell(hide_code=True)
-def _(app, mo, run_delete_neo4j, verify_dspy):
+def _(app, delete_neo4j, mo, run_delete_neo4j):
     if run_delete_neo4j.value:
         try:
-            verify_dspy(app.cfg)
+            delete_neo4j(app.cfg)
             mo.output.append(mo.md(f"""
     /// details | ✅  Successfully deleted database
         type: success
@@ -584,7 +584,7 @@ def _(mo):
 
 
 @app.cell
-async def _(
+def _(
     add_episode,
     app,
     connect_graphiti,
@@ -600,7 +600,7 @@ async def _(
         for idx, chunk in enumerate(mo.status.progress_bar(chunks)):
             result = await add_episode(graphiti, doc, chunk, idx, entity_types, edge_types, edge_type_map)
 
-    await _()
+    # await _()
     return chunks, graphiti
 
 
@@ -657,14 +657,14 @@ def _(dspy):
 
 
 @app.cell
-def _(chunks, inferer):
+def _():
     # Let's try it with the first chunk
-    inferer(episode_text=chunks[0])
+    # inferer(episode_text=chunks[0])
     return
 
 
 @app.cell
-async def _(
+def _(
     add_episode,
     chunks,
     doc,
@@ -680,7 +680,7 @@ async def _(
             inferer_result = inferer(episode_text=chunk)
             await add_episode(graphiti, doc, inferer_result.conclusions, idx, entity_types, edge_types, edge_type_map)
 
-    await _()
+    # await _()
     return
 
 
@@ -729,8 +729,8 @@ def _(mo):
 
 
 @app.cell
-def _(graphiti):
-    graphiti.search("What do we know about Sherlock Holmes?")
+def _():
+    # graphiti.search("What do we know about Sherlock Holmes?")
     return
 
 
@@ -823,11 +823,12 @@ def _(mo):
 
 @app.cell
 def _(asyncio, dspy, graphiti):
-    class ChatAgent(dspy.ChatSignature):
+    class ChatAgent(dspy.Signature):
         """
         A multi-turn chat agent that can use tools and DSPy reasoning.
         """
-        messages: dspy.Messages = dspy.InputField()
+        question: str = dspy.InputField()
+        history: dspy.History = dspy.InputField()
         answer: str = dspy.OutputField()
 
     def graph_search_tool(query: str) -> str:
@@ -906,6 +907,7 @@ def _():
         verify_dspy,
         connect_neo4j,
         connect_graphiti,
+        delete_neo4j
     )
     from neuro_noir.datasets import list_datasets, load_dataset
     from neuro_noir.core.app import Application
@@ -923,6 +925,7 @@ def _():
         app,
         asyncio,
         connect_graphiti,
+        delete_neo4j,
         dspy,
         list_datasets,
         mo,
