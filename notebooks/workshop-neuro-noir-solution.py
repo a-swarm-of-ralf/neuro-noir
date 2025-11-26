@@ -851,12 +851,10 @@ def _(mo):
 
 
 @app.cell
-def _(app, asyncio, connect_dspy_small, dspy, graphiti):
-    dspy.configure(lm=connect_dspy_small(app.cfg))
-
+def _(asyncio, dspy, graphiti):
     class ChatAgent(dspy.Signature):
         """
-        <Enter your agnet task description here, make sure to tell it it use the kwowledge graph to get facts>
+        A multi-turn chat agent that can use tools and DSPy reasoning.
         """
         question: str = dspy.InputField()
         history: dspy.History = dspy.InputField()
@@ -878,15 +876,14 @@ def _(app, asyncio, connect_dspy_small, dspy, graphiti):
         ChatAgent,
         tools=[graph_search_tool],
     )
-    return
+    return (agent,)
 
 
 @app.cell
-def _(dspy):
+def _(agent, app, connect_dspy_large, dspy):
     history = dspy.History(messages=[])
-    question = "What can you tell me about Watson for the knowledge base?"
-
-    # Test agent here
+    dspy.configure(lm=connect_dspy_large(app.cfg))
+    agent(question="Who is the retired colourman in the knowledge graph?", history=history)
     return
 
 
@@ -914,12 +911,16 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
+def _(agent, dspy, mo):
     def my_agent_model(messages, config):
         # Each message has a `content` attribute, as well as a `role`
         # attribute ("user", "system", "assistant");
 
         # agent logic here
+        last_message = messages[-1]
+        history = dspy.History(messages=[{"content": msg.content, "role":msg.role} for msg in messages[:-1]])
+        response = agent(question=last_message.content, history=history)
+        return response.answer
         response = "My agent does nothing yet"
         return response
 
@@ -949,7 +950,6 @@ def _():
         connect_neo4j,
         connect_graphiti,
         connect_dspy_large,
-        connect_dspy_small,
         delete_neo4j
     )
     from neuro_noir.datasets import list_datasets, load_dataset
@@ -968,7 +968,7 @@ def _():
         add_episode,
         app,
         asyncio,
-        connect_dspy_small,
+        connect_dspy_large,
         connect_graphiti,
         delete_neo4j,
         dspy,
