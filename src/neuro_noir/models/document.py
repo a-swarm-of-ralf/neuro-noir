@@ -28,3 +28,17 @@ class Document(BaseModel):
         }
         for i in range(len(paragraphs))
     ]
+
+    def chunks_per_paragraph(self, chunk_size: int = 800) -> list[dict[str, list[str] | str]]:
+        chunks = []
+        active = ""
+        for paragraph in self.paragraphs:
+            if len(active) + len(paragraph) <= chunk_size:
+                active += "\n\n" + paragraph if active else paragraph
+            else:
+                if active:
+                    chunks.append(active.strip())
+                active = paragraph
+        if active:
+            chunks.append(active.strip())
+        return chunks
