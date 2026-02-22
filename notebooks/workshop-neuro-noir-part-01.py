@@ -899,28 +899,6 @@ def _(chunks, mo):
 
 
 @app.cell
-def _(
-    app,
-    chunks,
-    extract_progress_bar,
-    extraction_chunk_limit_slider,
-    run_extract_case,
-    user_name,
-):
-    triples_per_chunk = []
-
-    if run_extract_case.value:
-        with extract_progress_bar as bar:
-            triples_per_chunk = app.extract_triples(
-                chunks, 
-                limit=extraction_chunk_limit_slider.value, 
-                user=user_name.value, 
-                progress=bar.update
-        )
-    return
-
-
-@app.cell
 def _(app, mo, run_delete_neo4j, run_test_neo4j):
     db_ok = False
     db_line = "_not tested yet..._"
@@ -974,8 +952,6 @@ def _(
             "#extract-triples": f"4. Extract Triples",
             "#create-your-entities": f"5. Create Your Entities",
             "#resolve-entities": f"6. Resolve Entities",
-            "#register-entities-and-relations": f"5. Register Entities and Relations",
-
         },
         orientation="vertical",
         ),
