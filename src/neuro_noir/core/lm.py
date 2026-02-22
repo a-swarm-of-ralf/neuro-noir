@@ -34,22 +34,24 @@ def connect_genai(cfg: Settings):
     return genai.Client(vertexai=cfg.GENAI_USE_VERTEX, project=cfg.GENAI_VERTEX_PROJECT)
     
 
-def embed(cfg: Settings, content: str, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
+def embed(cfg: Settings, contents: str | list[str], task_type: str = "RETRIEVAL_QUERY") -> list[list[float]]:
     client = connect_genai(cfg)
     response = client.models.embed_content(
         model='gemini-embedding-001',
-        contents=content,  
+        contents=contents,  
         config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=1536)
     )
-    return response.embeddings[0].values if response.embeddings and len(response.embeddings) > 0 else []
+    return [emb.values for emb in response.embeddings] if response.embeddings else []
+    
+
+def embed_query(cfg: Settings, contents: str | list[str]) -> list[list[float]]:
+    contents = [contents] if isinstance(contents, str) else contents
+    return embed(cfg, contents, task_type="RETRIEVAL_QUERY")
 
 
-def embed_query(cfg: Settings, content: str) -> list[float]:
-    return embed(cfg, content, task_type="RETRIEVAL_QUERY")
-
-
-def embed_document(cfg: Settings, content: str) -> list[float]:
-    return embed(cfg, content, task_type="RETRIEVAL_DOCUMENT")
+def embed_document(cfg: Settings, contents: str | list[str]) -> list[list[float]]:
+    contents = [contents] if isinstance(contents, str) else contents
+    return embed(cfg, contents, task_type="RETRIEVAL_DOCUMENT")
 
 
 def test_embedding(cfg: Settings) -> tuple[bool, str, str]:

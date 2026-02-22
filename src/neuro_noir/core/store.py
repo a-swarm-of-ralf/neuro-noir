@@ -161,3 +161,33 @@ class Store:
             return []
         with chunks_file.open("r", encoding="utf-8") as f:
             return json.load(f)
+        
+
+    def store_txt(self, user: str, name: str, content: str) -> None:
+        """
+        Store a text file within a user's folder.
+
+        Args:
+            user (str): The name of the user's folder (e.g. 'student-003').
+            name (str): The name of the text file to be stored.
+            content (str): The content to be written to the file.
+        """
+        user_folder = self.base_path / user
+        user_folder.mkdir(exist_ok=True)  # Ensure the user folder exists
+        txt_file = user_folder / name
+        with txt_file.open("w", encoding="utf-8") as f:
+            f.write(content)
+
+    def store_all(self, user: str, name_prefix: str, ext: str, txts: List[str]) -> None:
+        """
+        Store all chunks for a user. This is a convenience method that currently just calls save_chunks,
+        but can be extended in the future to include additional processing or metadata.
+
+        Args:
+            user (str): The name of the user's folder (e.g. 'student-003').
+            name_prefix (str): The prefix for the names of the text files to be stored.
+            ext (str): The extension for the text files to be stored (e.g. 'txt').
+            txts (list[str]): A list of text contents to be stored in separate files.
+        """
+        for idx, txt in enumerate(txts):
+            self.store_txt(user, f"{name_prefix}-{idx + 1:04d}.{ext}", txt)

@@ -4,7 +4,7 @@ from neuro_noir.models.statement import Statement
 
 STATEMENTS_SCHEMA = {
         "type": "array",
-        "description": "A list of extracted RDF-like statements (subject–predicate–object) with modalities, sentence and explanation.",
+        "description": "A list of extracted RDF-like statements (subject–predicate–object) with modality, sentence and explanation.",
         "items": Statement.model_json_schema()
     }
 
@@ -18,7 +18,7 @@ class ExtractStatements(Signature):
         1. Examine the text sentence be sentence
         2. Of each sentence extract all statements. If subject or object contain conjunction create a statement for each option.
         3. Use the pure root of the verb with proposition as predicate.
-        4. Based on the intent of the statement add one or more modalities to the statement. The modality can be one or more of the following:
+        4. Based on the intent of the statement add one or more modality to the statement. The modality can be one or more of the following:
             - 'assertion' if this is a statement that is factual or true.
             - 'negation' if this is a statement that is false.
             - 'possibility' if this is a statement that is possible but not certain.
@@ -29,8 +29,8 @@ class ExtractStatements(Signature):
             - 'future' if this is a statement about the future.
             - 'past' if this is a statement about the past.
             - 'present' if this is a statement about the present.
-            - Add other modalities as needed, but be careful to not add too many modalities that are not relevant or useful for understanding the statement.
-            - Note that a statement can have multiple modalities. For example, if the statement is 'The cat might not be on the mat', the modalities would be 'possibility' and 'negation'.
+            - Add other modality as needed, but be careful to not add too many modality that are not relevant or useful for understanding the statement.
+            - Note that a statement can have multiple modality. For example, if the statement is 'The cat might not be on the mat', the modality would be 'possibility' and 'negation'.
         5. Add an explanation about why the subject, predicate, and object were chooses and why it has that modality.
 
         Return a JSON array where each item is one statement with metadata.

@@ -1,220 +1,183 @@
-from __future__ import annotations
-
-from datetime import datetime
-from typing import Optional, Literal
-
-from pydantic import BaseModel, Field, field_validator
+from neo4j import Driver
+from neuro_noir.models.entity import Entity
 
 
-# =========================
-# ENTITY TYPES
-# =========================
+SCHEMA = """
+CREATE CONSTRAINT entity_id_unique IF NOT EXISTS
+FOR (e:Entity)
+REQUIRE e.entity_id IS UNIQUE;
 
-class Person(BaseModel):
-    """A person involved in a detective case (suspect, victim, witness, investigator, or other role)."""
+CREATE INDEX entity_canonical_name_idx IF NOT EXISTS
+FOR (e:Entity) ON (e.canonical_name);
 
-    full_name: Optional[str] = Field(
-        None,
-        description="Full name of the person as mentioned in the case materials.",
-    )
-    alias: Optional[str] = Field(
-        None,
-        description="Alternative name, nickname, or title used for this person in the narrative.",
-    )
-    role_in_case: Optional[str] = Field(
-        None,
-        description="High-level role in the investigation (for example: suspect, victim, witness, inspector).",
-    )
-    age: Optional[int] = Field(
-        None,
-        description="Approximate age of the person at the time of the main events.",
-    )
-    occupation: Optional[str] = Field(
-        None,
-        description="Primary job or occupation as described in the story.",
-    )
-    primary_location: Optional[str] = Field(
-        None,
-        description="Main location associated with this person (for example: home or workplace).",
-    )
-    is_victim: Optional[bool] = Field(
-        None,
-        description="True if this person is explicitly described as a victim of a crime or attack.",
-    )
-    is_suspect: Optional[bool] = Field(
-        None,
-        description="True if this person is explicitly considered a suspect in the investigation.",
-    )
-    is_witness: Optional[bool] = Field(
-        None,
-        description="True if this person provides testimony or is described as having seen relevant events.",
-    )
+CREATE INDEX entity_type_idx IF NOT EXISTS
+FOR (e:Entity) ON (e.type);
+
+CREATE INDEX entity_aliases_idx IF NOT EXISTS
+FOR (e:Entity) ON (e.aliases);
+
+CREATE FULLTEXT INDEX entity_text_ft IF NOT EXISTS
+FOR (e:Entity)
+ON EACH [e.canonical_name, e.description, e.explanation, e.aliases];
+
+CREATE VECTOR INDEX entity_name_embedding_vx IF NOT EXISTS
+FOR (e:Entity) ON (e.name_embedding)
+OPTIONS {
+  indexConfig: {
+    `vector.dimensions`: 1536,
+    `vector.similarity_function`: 'cosine'
+  }
+};
+
+CREATE VECTOR INDEX entity_profile_embedding_vx IF NOT EXISTS
+FOR (e:Entity) ON (e.profile_embedding)
+OPTIONS {
+  indexConfig: {
+    `vector.dimensions`: 1536,
+    `vector.similarity_function`: 'cosine'
+  }
+};
+"""
 
 
-class Statement(BaseModel):
-    """A spoken or written statement, quote, or testimony relevant to solving the case."""
-
-    text: Optional[str] = Field(
-        None,
-        description="Exact or approximate content of the statement as it appears in the text.",
-    )
-    is_direct_quote: Optional[bool] = Field(
-        None,
-        description="True if the statement is presented as a direct quotation with quotation marks.",
-    )
-    is_under_oath: Optional[bool] = Field(
-        None,
-        description="True if the statement is given as formal testimony (for example, in court or to the police).",
-    )
-    source_document_id: Optional[str] = Field(
-        None,
-        description="Identifier of the source document or chapter where this statement appears, if available.",
-    )
-    paragraph_index: Optional[int] = Field(
-        None,
-        description="Zero-based index of the paragraph in which the statement appears, when known.",
-    )
+UPSERT_ENTITY = """
+MERGE (e:Entity {entity_id: $entity_id})
+SET
+  e.canonical_name = $canonical_name,
+  e.aliases = $aliases,
+  e.type = $type,
+  e.category = $category,
+  e.description = $description,
+  e.explanation = $explanation,
+  e.name_embedding = $name_embedding,
+  e.profile_embedding = $profile_embedding,
+  e.subject_statement_ids = $subject_statement_ids,
+  e.object_statement_ids = $object_statement_ids
+SET e += $attributes
+SET e.attribute_keys = keys($attributes)
+RETURN e
+"""
 
 
-class Location(BaseModel):
-    """A physical location referenced in the case, such as rooms, buildings, streets, or cities."""
-
-    label: Optional[str] = Field(
-        None,
-        description="Short label for the location (for example: 'study', 'garden', 'opera house').",
-    )
-    address: Optional[str] = Field(
-        None,
-        description="Full or partial address of the location when provided in the text.",
-    )
-    building_name: Optional[str] = Field(
-        None,
-        description="Name of the building or estate, if applicable.",
-    )
-    room_name: Optional[str] = Field(
-        None,
-        description="Name or description of the specific room or interior area within a building.",
-    )
-    city: Optional[str] = Field(
-        None,
-        description="City or town in which this location is situated, if known.",
-    )
-    country: Optional[str] = Field(
-        None,
-        description="Country of the location, when specified.",
-    )
-    is_crime_scene: Optional[bool] = Field(
-        None,
-        description="True if this location is explicitly described as a scene of a crime, attack, or major event.",
-    )
+LINK_SUBJECT = """
+MATCH (s:Statement {statement_id: $statement_id})
+MATCH (e:Entity {entity_id: $entity_id})
+MERGE (s)-[:HAS_SUBJECT]->(e)
+RETURN e, s
+"""
 
 
-class Event(BaseModel):
-    """An event relevant to the investigation, such as murders, robberies, meetings, or alibi intervals."""
+LINK_OBJECT = """
+MATCH (s:Statement {statement_id: $statement_id})
+MATCH (e:Entity {entity_id: $entity_id})
+MERGE (s)-[:HAS_OBJECT]->(e)
+RETURN e, s
+"""
 
-    event_type: Optional[str] = Field(
-        None,
-        description="Short label describing the event type (for example: 'murder', 'robbery', 'alibi_interval').",
-    )
-    description: Optional[str] = Field(
-        None,
-        description="Narrative description of the event as inferred from the text.",
-    )
-    start_time: Optional[str] = Field(
-        None,
-        description="Approximate start time of the event when it can be inferred or is explicitly mentioned.",
-    )
-    end_time: Optional[str] = Field(
-        None,
-        description="Approximate end time of the event, if it spans a period of time.",
-    )
-    is_crime: Optional[bool] = Field(
-        None,
-        description="True if this event is itself a crime or attempted crime.",
-    )
-    is_confirmed: Optional[bool] = Field(
-        None,
-        description="True if the narrator treats the event as factual rather than hypothetical or speculative.",
+
+VECTOR_SEARCH = """
+CALL db.index.vector.queryNodes($index_name, $k, $embedding)
+YIELD node, score
+RETURN node AS n, score
+ORDER BY score DESC
+LIMIT $k
+"""
+
+
+def params(entity: Entity) -> dict:
+    return {
+        "entity_id": int(entity.id),
+        "canonical_name": entity.name,
+        "aliases": entity.aliases,
+        "type": entity.type_,
+        "category": entity.category,
+        "description": entity.description,
+        "explanation": entity.explanation,
+        "name_embedding": entity.name_embedding,
+        "profile_embedding": entity.profile_embedding,
+        "attributes": entity.attributes,
+        "subject_statement_ids": [int(sid) for sid in entity.subject_statement_ids],
+        "object_statement_ids": [int(oid) for oid in entity.object_statement_ids]
+    }
+
+
+def record_to_entity(record: dict) -> Entity:
+    return Entity(
+        id=int(record["entity_id"]),
+        name=record["canonical_name"],
+        aliases=record["aliases"],
+        type=record["type"],
+        category=record.get("category", ""),
+        description=record["description"],
+        explanation=record["explanation"],
+        name_embedding=record["name_embedding"],
+        profile_embedding=record["profile_embedding"],
+        attributes={k: record[k] for k in record["attribute_keys"]} if "attribute_keys" in record else {},
+        subject_statement_ids=record.get("subject_statement_ids", []),
+        object_statement_ids=record.get("object_statement_ids", [])
     )
 
 
-class Object(BaseModel):
-    """A physical object relevant to the case, such as weapons, tools, documents, or personal items."""
-
-    label: Optional[str] = Field(
-        None,
-        description="Short name or label for the object (for example: 'revolver', 'teacup', 'watch').",
-    )
-    category: Optional[str] = Field(
-        None,
-        description="Category of object (for example: 'weapon', 'document', 'clothing', 'tool').",
-    )
-    material: Optional[str] = Field(
-        None,
-        description="Primary material of the object (for example: 'metal', 'glass', 'paper').",
-    )
-    is_weapon: Optional[bool] = Field(
-        None,
-        description="True if the object is used or suspected to be used as a weapon.",
-    )
-    is_personal_item: Optional[bool] = Field(
-        None,
-        description="True if this object is personally associated with a specific character (for example: jewelry, watch).",
-    )
+def store(driver, entity: Entity):
+    with driver.session() as session:
+        session.run(UPSERT_ENTITY, params(entity)).consume()
+        for sid in entity.subject_statement_ids:
+            print(f"Linking entity {entity.id} as subject to statement {sid}")
+            session.run(LINK_SUBJECT, {"statement_id": int(sid), "entity_id": int(entity.id)}).consume()
+        for oid in entity.object_statement_ids:
+            print(f"Linking entity {entity.id} as object to statement {oid}")
+            session.run(LINK_OBJECT, {"statement_id": int(oid), "entity_id": int(entity.id)}).consume()
 
 
-class Evidence(BaseModel):
-    """A piece of evidence collected or inferred in the investigation, physical or informational."""
-
-    evidence_type: Optional[str] = Field(
-        None,
-        description="Type of evidence (for example: 'fingerprint', 'footprint', 'document', 'forensic_report').",
-    )
-    description: Optional[str] = Field(
-        None,
-        description="Short explanation of what this evidence is and why it matters.",
-    )
-    collected_at: Optional[str] = Field(
-        None,
-        description="Timestamp when the evidence is collected, if explicitly known.",
-    )
-    collected_by: Optional[str] = Field(
-        None,
-        description="Name or role of the person who collected the evidence (for example: 'Holmes', 'inspector').",
-    )
-    chain_of_custody_id: Optional[str] = Field(
-        None,
-        description="Identifier tracking how this evidence moves between people or locations, if modeled.",
-    )
-    reliability_score: Optional[float] = Field(
-        None,
-        description="Normalized confidence score between 0.0 and 1.0 expressing how reliable this piece of evidence appears.",
-    )
-
-    @field_validator("reliability_score")
-    @classmethod
-    def validate_reliability_score(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and not (0.0 <= v <= 1.0):
-            raise ValueError("reliability_score must be between 0.0 and 1.0")
-        return v
+def store_all(driver, entities: list[Entity]):
+    print(f"Storing {len(entities)} entities in the database...")
+    with driver.session() as session:
+        for entity in entities:
+            print(f". Storing entity {entity.id}")
+            print(f". Subject statement IDs: {entity.subject_statement_ids}")
+            print(f". Object statement IDs: {entity.object_statement_ids}")
+            session.run(UPSERT_ENTITY, params(entity)).consume()
+            print(f". Linking statements for entity {entity.id}")
+            print(f". Subject statement IDs: {entity.subject_statement_ids}")
+            for sid in entity.subject_statement_ids:
+                print(f".   Linking entity {entity.id} as subject to statement {sid}")
+                session.run(LINK_SUBJECT, {"statement_id": int(sid), "entity_id": int(entity.id)}).consume()
+            print(f". Object statement IDs: {entity.object_statement_ids}")
+            for oid in entity.object_statement_ids:
+                print(f".   Linking entity {entity.id} as object to statement {oid}")
+                session.run(LINK_OBJECT, {"statement_id": int(oid), "entity_id": int(entity.id)}).consume()
 
 
-class Organization(BaseModel):
-    """An organization appearing in the case, such as police forces, companies, or criminal groups."""
+def search(
+    driver: Driver,
+    embedding: list[float],
+    n: int = 10,
+    index_name: str = "entity_name_embedding_vx",
+) -> list[tuple[Entity, float]]:
+    with driver.session() as session:
+        results = session.run(VECTOR_SEARCH, {
+            "index_name": index_name,
+            "k": n,
+            "embedding": embedding
+        })
 
-    org_name: Optional[str] = Field(
-        None,
-        description="Full name of the organization as mentioned in the story.",
-    )
-    org_type: Optional[str] = Field(
-        None,
-        description="Kind of organization (for example: 'police', 'bank', 'criminal_group', 'family').",
-    )
-    jurisdiction: Optional[str] = Field(
-        None,
-        description="Geographical or legal area in which the organization operates.",
-    )
-    industry: Optional[str] = Field(
-        None,
-        description="Main industry or activity of the organization where applicable (for example: 'finance', 'law enforcement').",
-    )
+        entities = []
+        for record in results:
+            entities.append((record_to_entity(dict(record["n"])), record["score"]))
+        return entities
+    
+
+def search_by_name(
+    driver: Driver,
+    embedding: list[float],
+    n: int = 10,
+) -> list[tuple[Entity, float]]:
+    return search(driver, embedding, n, index_name="entity_name_embedding_vx")
+
+
+def search_by_profile(
+    driver: Driver,
+    embedding: list[float],
+    n: int = 10,
+) -> list[tuple[Entity, float]]:
+    return search(driver, embedding, n, index_name="entity_profile_embedding_vx")

@@ -16,6 +16,11 @@ from functools import lru_cache
 
 from neuro_noir.core.config import Settings
 from neuro_noir.core.report import md_report
+from neuro_noir.graph.chunks import SCHEMA as CHUNK_SCHEMA
+from neuro_noir.graph.entities import SCHEMA as ENTITY_SCHEMA
+from neuro_noir.graph.statements import SCHEMA as STATEMENT_SCHEMA
+from neuro_noir.graph.relationships import SCHEMA as RELATIONSHIP_SCHEMA
+from neuro_noir.graph.documents import SCHEMA as DOCUMENT_SCHEMA
 
 
 @lru_cache(maxsize=1)
@@ -57,6 +62,19 @@ def delete_neo4j(cfg: Settings, cache: bool = True) -> None:
     driver = connect_neo4j(cfg, cache=cache)
     with driver.session() as session:
         session.run("MATCH (n) DETACH DELETE n").consume()
+
+
+def install_neo4j_schema(cfg: Settings, cache: bool = True) -> None:
+    driver = connect_neo4j(cfg, cache=cache)
+    statements = []
+    statements.extend([s.strip() for s in CHUNK_SCHEMA.strip().split(";") if s.strip()])
+    statements.extend([s.strip() for s in ENTITY_SCHEMA.strip().split(";") if s.strip()])
+    statements.extend([s.strip() for s in STATEMENT_SCHEMA.strip().split(";") if s.strip()])
+    statements.extend([s.strip() for s in RELATIONSHIP_SCHEMA.strip().split(";") if s.strip()])
+    statements.extend([s.strip() for s in DOCUMENT_SCHEMA.strip().split(";") if s.strip()])
+    with driver.session() as session:
+        for stmt in statements:
+            session.run(stmt).consume()
 
 
 def test_db(cfg) -> Tuple[bool, str, str]:
@@ -305,6 +323,7 @@ def delete_db(cfg: Settings, cache: bool = True) -> Tuple[bool, str, str]:
         return False, "Cannot delete database because connection test failed: " + feedback[1], feedback[2]
     try:
         delete_neo4j(cfg, cache=cache)
+        install_neo4j_schema(cfg, cache=cache)
         return True, "✅ Neo4j database cleared successfully", md_report(
             title="✅ Neo4j database cleared successfully",
             what_went_wrong="Nothing went wrong — the database was cleared.",

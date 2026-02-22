@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.11"
+__generated_with = "0.20.1"
 app = marimo.App(width="medium")
 
 
@@ -376,21 +376,204 @@ def _(chunk_carousel, chunks, mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(rf"""
-    ## 3. Create Schema
+    ### Checkout the Graph
 
-    Define a concise schema for your mystery: entity and relationship types, their properties, and constraints, so extracted facts land in a consistent Neo4j structure.
+    If all went well the chunks should have been inserted into the graph database. Check it out. It should look something like this:
 
-    A knowledge graph uses:
-    - Entities — things (people, locations, events, objects, organizations)
-    - Relations — how things connect (was at, knows, owns, sent, inherited from)
-    - Triples — subject–predicate–object, e.g.:
-      `Person B — was at — Café X`, `Person A — has motive — Victim`, `Letter — was sent to — Person C`
+    ![Image of Graph with Chunk Nodes](public/graph-chunks.jpg)
+    """)
+    return
 
-    We store the graph in Neo4j and use tools to:
-    - parse episode text with an LLM,
-    - extract entities and relations,
-    - write them with embeddings and metadata,
-    - enable search and reasoning.
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(rf"""
+    ### Querying Chunks
+
+    Now that we have inserted our chunks we can query them. This works through embeddings.
+
+    /// details | Embeddings
+        type: info
+
+    If you examine the chunk nodes in **Neo4j** you’ll notice an attribute called _embedding_. An **embedding** is a numerical representation of the meaning of a piece of text, created by a machine learning model. Instead of storing words as plain strings, the model converts the content of a chunk into a long list of numbers (in your case, 1536 values) that captures its semantic context. Texts with similar meanings will have embeddings that are mathematically close to each other, even if they use different wording. For example, “The cat sits on the mat” and “A feline is resting on the rug” will produce embeddings that are very similar, despite sharing few exact words.
+
+    These embeddings allow you to perform **semantic search** and clustering instead of relying only on keyword matching. When you embed a user query, you can compare it to the stored chunk embeddings and find the most relevant pieces of text using similarity measures such as **cosine similarity**. This makes it possible to build features like “search by meaning,” recommendation systems, and retrieval-augmented generation (RAG) pipelines. In practice, this means your application can retrieve the most relevant chunks for a question, even when the question does not use the same vocabulary as the original document, leading to more robust and intelligent behavior.
+
+    ///
+
+    /// admonition | Excercise 3.
+
+    Let's try it. Use `app.search_chunks("[my-query]")` to search our chunks.
+
+    ///
+    """)
+    return
+
+
+@app.cell
+def _():
+    # app.search_chunks("Blackheath Station")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Generating the Knowledge Graph
+
+    Now we have the our schema and the chunks we can extract the knowledge graph from this information.
+
+    /// details | Triples
+        type: info
+
+    A knowledge graph consists of **[_subject_ → _verb_ → _object_]** statements. These are often called **triples**, and they provide a simple, structured way to represent facts. Each triple captures one basic idea: something (**the subject**) is related in some way (**the verb**) to something else (**the object**). For example:
+
+    - **Alice → works at → CompanyX**
+    - **Paris → is capital of → France**
+
+    By breaking information down into these small, consistent pieces, complex text can be transformed into data that computers can reliably store, query, and connect. Instead of parsing entire paragraphs every time, systems can operate on these atomic building blocks of meaning.
+
+    On their own, triples are admittedly **limited**. They do not easily capture nuance, uncertainty, emotions, or long narrative context. However, their simplicity is precisely what makes them powerful. Because every fact follows the same structure, triples can be **linked together into networks**, queried efficiently, and combined across different data sources. While a single triple may seem trivial, thousands or millions of them form a **graph of interconnected knowledge** that enables structured search, relationship discovery, and even reasoning. In short, triples trade expressive richness for **scalability, consistency, and computability**—a trade-off that makes them extremely valuable in software systems.
+
+    ///
+
+    We use [DSPy](https://dspy.ai/) to extract triples from our chunks. A slider is provided to select the number of chunks to givbe to the extraction.
+
+    /// details | DSPy
+        type: info
+
+    We use **[DSPy](https://dspy.ai/)**, a **declarative framework for AI software**, for the extraction and optimization of structured information from text. Instead of manually crafting and fine-tuning prompts, DSPy allows developers to describe *what* they want the model to produce using clear input–output specifications, examples, and constraints. These specifications are then used by DSPy to automatically generate, evaluate, and refine prompts. This shifts prompt engineering from an ad-hoc, trial-and-error process into a more systematic and reproducible development workflow.
+
+    By treating prompts as trainable programs rather than static strings, DSPy enables continuous improvement of extraction quality through automated optimization techniques. It can test multiple prompt variants, measure their performance against examples, and converge on better-performing configurations over time. For this project, this means that tasks such as extracting entities, relationships, and statements can be made more reliable, consistent, and maintainable. Instead of relying on fragile, hand-written prompts, we use DSPy to build adaptive pipelines that improve as more data and feedback become available.
+
+    ///
+
+    /// attention | Chunk Limit
+    Extracting can take quite some time, so keep the number of chunks small and examine the result trying the full run.
+    ///
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(extraction_chunk_limit_slider, mo, run_extract_case):
+    mo.md(rf"""
+    ### Extract Triples
+
+    /// admonition | Exercise 4.
+
+    Run the extraction and examine the results.
+    ///
+
+    {extraction_chunk_limit_slider}
+    {run_extract_case}
+    """)
+    return
+
+
+@app.cell
+def _(app, extraction_chunk_limit_slider, mo, run_extract_case):
+    triples = []
+    _params = {
+        'title': f"Extracting Triples",
+        'subtitle': f"processing {extraction_chunk_limit_slider.value} chunks..."
+    }
+
+    if run_extract_case.value:
+        app.start_extraction()
+        for _chunk in mo.status.progress_bar(app.chunks[:extraction_chunk_limit_slider.value], **_params):
+            app.do_extraction(_chunk)
+        triples = app.end_extraction()
+    return (triples,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Examining the Extractor
+
+    The extractor is a DSPy module that contains an language model prompt. Writing the prompt
+
+    /// details | Extractor
+        type: info
+
+    ```python
+    class ExtractStatements(Signature):
+        "\"\"
+        Examine the text and extract ALL core RDF-like statements (subject, predicate, object).
+
+        Instructions
+        ------------
+        1. Examine the text sentence be sentence
+        2. Of each sentence extract all statements. If subject or object contain conjunction create a statement for each option.
+        3. Use the pure root of the verb with proposition as predicate.
+        4. Based on the intent of the statement add one or more modality to the statement. The modality can be one or more of the following:
+            - 'assertion' if this is a statement that is factual or true.
+            - 'negation' if this is a statement that is false.
+            - 'possibility' if this is a statement that is possible but not certain.
+            - 'speculation' if this is a statement that is speculative or hypothetical.
+            - 'question' if this is a statement that is a question.
+            - 'hypothetical' if this is a statement that is hypothetical or conditional.
+            - 'contradiction' if this is a statement that contradicts another statement.
+            - 'future' if this is a statement about the future.
+            - 'past' if this is a statement about the past.
+            - 'present' if this is a statement about the present.
+            - Add other modalities as needed, but be careful to not add too many modalities that are not relevant or useful for understanding the statement.
+            - Note that a statement can have multiple modalities. For example, if the statement is 'The cat might not be on the mat', the modalities would be 'possibility' and 'negation'.
+        5. Add an explanation about why the subject, predicate, and object were chooses and why it has that modality.
+
+        Return a JSON array where each item is one statement with metadata.
+        "\"\"
+        text: str = InputField(desc="The text to extract statements from.")
+
+        statements: list = OutputField(
+            desc="JSON array of {subject, predicate, object, modality, sentence, explanation}",
+            json_schema=STATEMENTS_SCHEMA
+        )
+    ```
+
+    ///
+    """)
+    return
+
+
+@app.cell
+def _(mo, triples):
+    mo.ui.table(
+        data=[({ 
+            "subject": trip.subject, 
+            "predicate": trip.predicate, 
+            "object": trip.object_,
+            "modality": ", ".join(trip.modality) if trip.modality else "-",
+            "sentence": trip.sentence,
+            "explanation": trip.explanation,
+            }) for trip in triples ],
+        pagination=True,
+        label="Triples",
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Entities
+
+    As you can see in the triple table not all subjects and objects we extracted are very useful. When extracting subject–verb–object statements from natural language, many of the resulting subjects and objects are initially **unhelpful or ambiguous**, such as “I,” “you,” “he,” “she,” or “it.” These words carry little meaning on their own without context. Our next task is therefore to **resolve these references** into concrete, identifiable concepts by performing entity resolution, coreference resolution, and disambiguation.
+
+    /// details | Entities
+        type: info
+
+    In the context of triples and knowledge graphs, an **entity** is not a software object or a database record, but a real-world concept that can be uniquely identified and referred to across many statements. An entity represents something that “exists” in the domain of discourse: a person, organization, place, object, event, or abstract concept. For example, instead of treating “he,” “Watson,” and “the doctor” as separate subjects, they may all refer to the same underlying entity: *Dr. John Watson*. In RDF- and triple-based systems, entities act as stable anchors that connect many individual statements into a coherent network of knowledge.
+
+    ///
+
+    /// details | Coreference Resolution & Disambiguation
+        type: info
+
+    Two key processes help achieve this: **coreference resolution** and **disambiguation**. Coreference resolution identifies when different words or phrases in a text refer to the same entity, such as linking “the big cat,” “the cat,” and “it” to a single concept. Disambiguation, on the other hand, determines which specific entity is meant when a name or phrase could refer to multiple things, such as deciding whether “Paris” refers to the city in France or a person’s name. Together, these techniques transform vague or overloaded language into precise, reusable entities, making the resulting knowledge graph more accurate, connected, and useful for downstream reasoning and search.
+
+    ///
     """)
     return
 
@@ -398,10 +581,6 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ### 3.1 Create Entities
-
-    Entities are the “things” in your mystery: people, places, objects, events, organizations, and evidence items. In this workshop, you define these entities as structured data models. Once defined, we use an LLM to extract instances of these models from text and writes them into Neo4j as nodes, with properties and embeddings.
-
     /// details | Why Pydantic BaseModel?
         type: info
 
@@ -415,7 +594,7 @@ def _(mo):
         type: info
 
     - Class docstring: Sets the overall purpose and scope of the entity. Use it to clarify what belongs here and what does not.
-    - Field descriptions: Tell the LLM what each attribute means, how to phrase it, when to use None, and any constraints (e.g., “choose from {suspect, victim, witness}”).
+    - Field descriptions: Tell the LLM what each attribute means, how to phrase it, when to use None, and any constraints (e.g., “choose from \{suspect, victim, witness\}”).
     - Names and examples: Use precise names; where relevant, provide short examples in descriptions.
     ///
 
@@ -459,8 +638,8 @@ def _(mo):
 
         Prefer concrete, named locations. If a sub-area is important (e.g., 'the strong-room'), capture it.
         "\"\"
-
-        name: str = Field(
+        # name is reserved
+        location_name: str = Field(
             ...,
             description="Canonical name of the location as stated in the text (e.g., 'Camden House', 'Strong-room')."
         )
@@ -479,7 +658,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(rf"""
+    mo.md(r"""
     /// details | Best practices for defining entities
         type: info
 
@@ -495,11 +674,14 @@ def _(mo):
 
     Entity type attributes cannot use protected names that are already used by the core EntityNode class:
 
-    - `uuid`
+    - `id`
     - `name`
     - `aliases`
-    - `labels`
-    - `embedding`
+    - `type`
+    - `category`
+    - `description`
+    - `explanation`
+    - `attributes`
 
     ///
     """)
@@ -511,7 +693,7 @@ def _(mo):
     mo.md(rf"""
     ### Create Your Entities
 
-    /// admonition | Excercise 3.1.
+    /// admonition | Excercise 5.
 
     Create Entities for your project.
 
@@ -524,136 +706,128 @@ def _(mo):
 
 
 @app.cell
-def _(BaseModel, Field, Optional):
+def _(BaseModel, Field, Optional, app):
     class Person(BaseModel):
         """
         A person involved in a detective case (suspect, victim, witness, investigator, or other role).
         """
+        full_name: Optional[str] = Field(default="", 
+            description="Full name of the person as mentioned in the materials.",)
 
-        full_name: Optional[str] = Field(None, 
-                description="Full name of the person as mentioned in the materials.",)
-
-    return (Person,)
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    /// details | Best practices for defining edges (relationships)
-        type: info
-
-    - **Verbs:** Relationship are usually characrized as verbs, 'works_at', 'knows', ect...
-    - **Descriptions:** Be specific and actionable for the LLM
-
-    ///
-
-    ### Create Your Relations
-
-    /// admonition | Excercise 3.2.
-
-    Create Edges for your case.
-
-    - Identify 2–3 core relationships that matter for your case (e.g., `Person` -> `WorksAt` -> `Organization`, `Document` -> `Mentions` -> `Entity`, `Event` -> `OccursAt` -> `Location`).
-
-    ///
-    """)
-    return
-
-
-@app.cell
-def _(BaseModel, Field, Optional):
-    class TalkedTo(BaseModel):
+    class Organization(BaseModel):
         """
-        Relationship indicating that one Person communicated with another Person.
+        A company
         """
+        activities: str = Field(default="", 
+            description="What does the organization do.",)
 
-        justification: Optional[str] = Field(
-                None,
-                description="Brief natural-language explanation of how the source text indicates this communication between the two Persons (e.g., a quote or summary).",
-            )
+    class Location(BaseModel):
+        """
+        A location mentioned. Examples 'Home', 'Pemberly Station'
+        """
+        presence: str = Field(default="", description="Who is there.",)
 
-    return (TalkedTo,)
+    class Item(BaseModel):
+        """
+        An item that has some relevance, 'a letter', 'weapon', 'violin'
+        """
+        usage: str = Field(default="", description="How is the item used",)
 
+    class Mood(BaseModel):
+        """
+        A mood somebody is in. 'Anger', 'Sadness', 'Happy', 
+        """
+        is_good: str = Field(default="", description="Is it a good or bad mood?",)
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ### Register Entities and Relations
-
-    With the entities and edges defined, the next step is to register each entity and relation with the core so the system can use it during extraction.
-
-    /// admonition | Exercise 3.3.
-
-    Register the entities and relations.
-    ///
-    """)
-    return
-
-
-@app.cell
-def _(Person, TalkedTo, app):
     app.clear_entities_and_relationships()
-    app.register_entities([Person])
-    app.register_relationships([TalkedTo])
+    app.register_entities([Person, Organization, Location, Item, Mood])
+    return
+
+
+@app.cell(hide_code=True)
+def _(extraction_chunk_limit_slider, mo, run_resolve_case):
+    mo.md(rf"""
+    ### Resolve Entities
+
+    /// admonition | Exercise 6.
+
+    Define Entities and run the resolver.
+    ///
+
+    {extraction_chunk_limit_slider}
+    {run_resolve_case}
+    """)
+    return
+
+
+@app.cell
+def _(app, extraction_chunk_limit_slider, mo, run_resolve_case):
+    entities = []
+    _params = {
+        'title': f"Resolving Entities",
+        'subtitle': f"processing {extraction_chunk_limit_slider.value} chunks..."
+    }
+
+    if run_resolve_case.value:
+        app.start_resolution()
+        for _chunk in mo.status.progress_bar(app.chunks[:extraction_chunk_limit_slider.value], **_params):
+            app.do_resolution(_chunk)
+        entities = app.end_resolution()
+    return (entities,)
+
+
+@app.cell
+def _(entities, mo):
+    mo.ui.table(
+        data=[({ 
+            "name": ent.name,
+            "aliases": ", ".join(ent.aliases) if ent.aliases else "-",
+            "type": ent.type_,
+            "category": ent.category,
+            "aliases": ", ".join(ent.aliases) if ent.aliases else "-",
+            "description": ent.description,
+            "explanation": ent.explanation,
+            }) for ent in entities ],
+        pagination=True,
+        label="Entities",
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Generating the Knowledge Graph
+    ### Examine the Graph
 
-    Now we have the our schema and the chunks we can extract the knowledge graph from this information. A knowledge graph consists of [_subject_ -> _verb_ -> _object_] statements. So we tell an llm to go over each chunk line-by-line and extract all the statements from the text.
+    Now we have statements and entities in our graph it starts to look more like network and less like a tree.
 
-    We use [DSPy](https://dspy.ai/), a declarative framework for AI software, for the extraction. A slider is provided to select the number of chunks to givbe to the extraction.
+    ![Graph with Statements and Entities](public/graph-entities.jpg)
 
-    /// attention | Chunk Limit
-    Extracting can take quite some time, so keep the number of chunks small and examine the result trying the full run.
-    ///
+    But we are not there yet. We still have entities that are essentially the same. We have multiple 'Holmes'and 'Watson' entities. To solve this we need _coreference resolution_, where we merge entities that are the same.
     """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
 @app.cell(hide_code=True)
-def _(
-    extract_progress_bar,
-    extraction_chunk_limit_slider,
-    mo,
-    run_extract_case,
-):
-    mo.md(rf"""
-    ### Extract Triples
-    {extraction_chunk_limit_slider}
-    {run_extract_case}
-    {extract_progress_bar}
+def _(mo):
+    mo.md(r"""
+    ---
+    # ⛔ Stop Here
+
+    You have now reached the end of the interactive part of this workshop.
+
+    All cells below this point contain internal setup and helper code that is already configured for you. You do **not** need to read, modify, or run anything further to complete the exercises.
+
+    Feel free to explore the code if you are curious, but for the purposes of this workshop, **you can safely stop here.** ✅
+
+    Great work, and well done for making it this far!
+    ---
     """)
-    return
-
-
-@app.cell
-def _(extraction_chunk_limit_slider, mo):
-    extract_progress_bar = mo.status.progress_bar(total=extraction_chunk_limit_slider.value, title=f"Extracting {extraction_chunk_limit_slider.value} Chunks")
-    return (extract_progress_bar,)
-
-
-@app.cell
-def _(triples_per_chunk):
-    triples_per_chunk
-    return
-
-
-@app.cell
-def _(triples_per_chunk):
-    from neuro_noir.llm.disambiguator import classifier
-    import json
-
-    _statements = [st for st in triples_per_chunk if st['chunk_index'] == 1]
-    _chunk = _statements[0]['chunk']
-    _statements = [ { 'subject': st['subject'], 'predicate': st['predicate'], 'object': st['object'], 'modality': st['modality'], 'sentence': st['sentence'], 'explanation': st['explanation'],} for st in _statements ]
-    _statement_text = json.dumps(_statements, indent=2)
-
-    _results = classifier(text=_chunk, statements=triples_per_chunk)
-    _results.entities
     return
 
 
@@ -671,12 +845,14 @@ def _(app, list_datasets, mo):
     run_load_case = mo.ui.run_button(label="Load!", kind="info", full_width=True)
     run_chunk_case = mo.ui.run_button(label="Chunk!", kind="info", full_width=True)
     run_extract_case = mo.ui.run_button(label="Extract!", kind="info", full_width=True)
+    run_resolve_case = mo.ui.run_button(label="Resolve Entities!", kind="info", full_width=True)
     return (
         cases_dropdown,
         run_chunk_case,
         run_delete_neo4j,
         run_extract_case,
         run_load_case,
+        run_resolve_case,
         run_test_dspy,
         run_test_genai,
         run_test_neo4j,
@@ -703,9 +879,9 @@ def _(app, run_chunk_case, user_name):
 @app.cell
 def _(chunks, mo):
     if len(chunks) > 1:
-        chunk_carousel = mo.carousel([ mo.callout(mo.md(f"#### Chunk {idx + 1}\n\n{chunk}")) for idx,chunk in enumerate(chunks) ])
+        chunk_carousel = mo.carousel([ mo.callout(mo.md(f"#### Chunk {chunk.index}\n\n{chunk.content}")) for idx,chunk in enumerate(chunks) ])
     else:
-        chunk_carousel = mo.callout(mo.center(mo.md(f"not chunks found...")))
+        chunk_carousel = mo.callout(mo.center(mo.md(f"no chunks found...")))
     return (chunk_carousel,)
 
 
@@ -741,7 +917,7 @@ def _(
                 user=user_name.value, 
                 progress=bar.update
         )
-    return (triples_per_chunk,)
+    return
 
 
 @app.cell
@@ -794,10 +970,12 @@ def _(
         mo.nav_menu({
             "#select-your-case": f"1. Select Your Case",
             "#chunk-your-case": f"2. Chunk Your Case",
-            "#create-your-entities": f"3. Create Your Entities",
-            "#create-your-relations": f"4. Create Your Relations",
+            "#querying-chunks": f"3. Querying Chunks",
+            "#extract-triples": f"4. Extract Triples",
+            "#create-your-entities": f"5. Create Your Entities",
+            "#resolve-entities": f"6. Resolve Entities",
             "#register-entities-and-relations": f"5. Register Entities and Relations",
-            "#extract-triples": f"6. Extract Triples",
+
         },
         orientation="vertical",
         ),
@@ -842,7 +1020,6 @@ def _():
     from neuro_noir.datasets import list_datasets, load_dataset
     from neuro_noir.core.app import Application
     from neuro_noir.models.document import Document
-    from neuro_noir.core.database import add_episode
 
     nest_asyncio.apply()
     app = Application()
