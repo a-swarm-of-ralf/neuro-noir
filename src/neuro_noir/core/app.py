@@ -1,6 +1,7 @@
-from typing import Any, Callable, Type
+from typing import Any, Callable, LiteralString, Type
 
 from pydantic import BaseModel
+from neo4j import Query
 from neuro_noir import graph
 from neuro_noir.core.config import Settings
 from neuro_noir.core.db import connect_neo4j, delete_db, test_db
@@ -113,7 +114,10 @@ class Application:
         self.statements.extend(stmts)
         driver = connect_neo4j(self.cfg, cache=False)
         statements.store_all(driver, stmts)
-        self.store.store_all(self.user, "statement", "json", [s.model_dump_json(include={'id', 'document_id', 'chunk_index', 'subject', 'predicate', 'object_', 'modality', 'sentence', 'explanation', 'name_embedding', 'profile_embedding'}, exclude_none=True) for s in stmts])
+        try:
+            self.store.store_all(self.user, "statement", "json", [s.model_dump_json(include={'id', 'document_id', 'chunk_index', 'subject', 'predicate', 'object_', 'modality', 'sentence', 'explanation', 'name_embedding', 'profile_embedding'}, exclude_none=True) for s in stmts])
+        except Exception as e:
+            print(f"[ERROR] File storage for. statements failed. {e}")
         return stmts
     
     def end_extraction(self) -> list[Statement]:
@@ -125,16 +129,19 @@ class Application:
     def do_resolution(self, chunk: Chunk) -> list[Entity]:
         print(f"Resolving entities for chunk {chunk.index} of document {chunk.document_id}...")
         ents = chunk.resolve_entities(self.cfg, self.entity_types, starting_id=len(self.entities) + 1)
-        for entity in ents:
-            print(f"Resolved entity {entity.id} with name '{entity.name}' and links to {len(entity.subject_statement_ids)} subject statements and {len(entity.object_statement_ids)} object statements.")
+        #for entity in ents:
+        #    print(f"Resolved entity {entity.id} with name '{entity.name}' and links to {len(entity.subject_statement_ids)} subject statements and {len(entity.object_statement_ids)} object statements.")
         self.entities.extend(ents)
-        print(f"Resolved {len(ents)} entities for chunk {chunk.index} of document {chunk.document_id}.")
+        # print(f"Resolved {len(ents)} entities for chunk {chunk.index} of document {chunk.document_id}.")
         driver = connect_neo4j(self.cfg, cache=False)
         for entity in ents:
             print(f"Storing entity {entity.id} in the database with statement IDs {entity.subject_statement_ids} and {entity.object_statement_ids}")
         entities.store_all(driver, ents)
-        print(f"Stored {len(ents)} entities in the database for chunk {chunk.index} of document {chunk.document_id}.")
-        self.store.store_all(self.user, "entity", "json", [e.model_dump_json(include={'id', 'name', 'aliases', 'type', 'category', 'description', 'explanation', 'name_embedding', 'profile_embedding', 'statement_ids'}, exclude_none=True) for e in ents])
+        # print(f"Stored {len(ents)} entities in the database for chunk {chunk.index} of document {chunk.document_id}.")
+        try:
+            self.store.store_all(self.user, "entity", "json", [e.model_dump_json(include={'id', 'name', 'aliases', 'type', 'category', 'description', 'explanation', 'name_embedding', 'profile_embedding', 'statement_ids'}, exclude_none=True) for e in ents])
+        except Exception as e:
+            print(f"[ERROR] File storage for entity failed. {e}")
         return ents
 
     def end_resolution(self) -> list[Entity]:
@@ -199,3 +206,27 @@ class Application:
         Clear the Neo4j database by deleting all nodes and relationships.
         """
         return delete_db(self.cfg)
+    
+    def embed(self, txt: str) -> list[float]:
+        return embed_query(self.cfg, contents=txt)[0]
+
+    def find_chunk(self, embedding: list[float], top_k: int=5) -> list[tuple[Chunk, float]]:
+        driver = connect_neo4j(self.cfg, cache=False)
+        results = chunks.search(driver, embedding, top_k)
+        return results
+
+    def find_statement(self, embedding: list[float], top_k: int=5) -> list[tuple[Statement, float]]:
+        driver = connect_neo4j(self.cfg, cache=False)
+        results = statements.search(driver, embedding, top_k)
+        return results
+
+    def find_entity(self, embedding: list[float], top_k: int=5) -> list[tuple[Entity, float]]:
+        driver = connect_neo4j(self.cfg, cache=False)
+        results = entities.search(driver, embedding, top_k)
+        return results
+    
+    def cypher_query(self, query: LiteralString, **args) -> list[dict]:
+        driver = connect_neo4j(self.cfg, cache=False)
+        with driver.session() as session:
+            response = session.run(query, parameters=args)
+            return [ dict(rec) for rec in response ]

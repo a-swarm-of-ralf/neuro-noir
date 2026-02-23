@@ -411,8 +411,11 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(app):
     # app.search_chunks("Blackheath Station")
+    _emb1 = app.embed("Blackheath Station")
+    _emb2 = app.embed("Josiah Amberly")
+    app.find_chunk(embedding=_emb2)
     return
 
 

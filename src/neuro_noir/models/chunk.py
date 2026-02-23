@@ -1,6 +1,6 @@
 import json
 from typing import Callable, Self, Type
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from neuro_noir.core.config import Settings
 from neuro_noir.core.lm import embed_document
@@ -38,9 +38,14 @@ class Chunk(BaseModel):
         """
         result = extractor(text=self.content)
         for idx, statement_dict in enumerate(result.statements):
-            statement = Statement(**statement_dict, id=starting_id + idx, document_id=self.document_id, chunk_index=self.index)
-            statement.attributes = {k: v for k, v in statement_dict.items() if k not in {"subject", "predicate", "object", "modality", "sentence", "explanation", "name_embedding", "profile_embedding", "id", "document_id", "chunk_index"}}
-            self.statements.append(statement)
+            try:
+                statement = Statement(**statement_dict, id=starting_id + idx, document_id=self.document_id, chunk_index=self.index)
+                statement.attributes = {k: v for k, v in statement_dict.items() if k not in {"subject", "predicate", "object", "modality", "sentence", "explanation", "name_embedding", "profile_embedding", "id", "document_id", "chunk_index"}}
+                self.statements.append(statement)
+            except ValidationError as e:
+                print(f"[ERROR] Could not parse statement {statement_dict}: {e}")
+            except ValueError as e:
+                print(f"[ERROR] Could not process statemnt {idx}: {e}")
 
         name_strings = [s.name_string() for s in self.statements]
 
@@ -61,10 +66,15 @@ class Chunk(BaseModel):
         response = resolver(text=self.content, statements=statements, categories=categories)
 
         for idx, entity_dict in enumerate(response.entities):
-            base_fields = {k:v for k, v in entity_dict.items() if k in {"name", "aliases", "type", "category", "description", "explanation", "name_embedding", "profile_embedding", "statement_ids", "subject_statement_ids", "object_statement_ids"}}
-            entity = Entity(**base_fields, id=starting_id + idx)
-            entity.attributes = {k: v for k, v in entity_dict.items() if k not in {"name", "aliases", "type", "category", "description", "explanation", "name_embedding", "profile_embedding", "id"}}
-            self.entities.append(entity)
+            try:
+                base_fields = {k:v for k, v in entity_dict.items() if k in {"name", "aliases", "type", "category", "description", "explanation", "name_embedding", "profile_embedding", "statement_ids", "subject_statement_ids", "object_statement_ids"}}
+                entity = Entity(**base_fields, id=starting_id + idx)
+                entity.attributes = {k: v for k, v in entity_dict.items() if k not in {"name", "aliases", "type", "category", "description", "explanation", "name_embedding", "profile_embedding", "id"}}
+                self.entities.append(entity)
+            except ValidationError as e:
+                print(f"[ERROR] Could not parse entity {idx}-{entity_dict}: {e}")
+            except ValueError as e:
+                print(f"[ERROR] Could not process entity {idx}-{entity_dict}: {e}")
 
         name_strings = [e.name_string() for e in self.entities]
         profile_strings = [e.profile_string() for e in self.entities]

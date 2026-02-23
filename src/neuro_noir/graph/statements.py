@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from neo4j import Driver
 
+from neuro_noir.graph.mapping import flatten_dict
 from neuro_noir.models.statement import Statement
 
 
@@ -76,7 +77,7 @@ def params(statement: Statement) -> dict:
         "explanation": statement.explanation,
         "name_embedding": statement.name_embedding,
         "profile_embedding": statement.profile_embedding,
-        "attributes": statement.attributes,
+        "attributes": flatten_dict(statement.attributes),
     }
 
 
@@ -114,7 +115,10 @@ def store(driver: Driver, statement: Statement):
 def store_all(driver, statements: list[Statement]):
     with driver.session() as session:
         for statement in statements:
-            session.run(UPSERT_STATEMENT, params(statement)).consume()
+            try:
+                session.run(UPSERT_STATEMENT, params(statement)).consume()
+            except Exception as e:
+                print(f"[ERROR] Failed to store statement {statement}: {e}")
 
 
 FIND_STATEMENT_BY_ID = """

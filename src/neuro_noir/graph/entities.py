@@ -1,4 +1,6 @@
+from typing import Any
 from neo4j import Driver
+from neuro_noir.graph.mapping import flatten_dict
 from neuro_noir.models.entity import Entity
 
 
@@ -95,7 +97,7 @@ def params(entity: Entity) -> dict:
         "explanation": entity.explanation,
         "name_embedding": entity.name_embedding,
         "profile_embedding": entity.profile_embedding,
-        "attributes": entity.attributes,
+        "attributes": flatten_dict(entity.attributes),
         "subject_statement_ids": [int(sid) for sid in entity.subject_statement_ids],
         "object_statement_ids": [int(oid) for oid in entity.object_statement_ids]
     }
@@ -133,19 +135,17 @@ def store_all(driver, entities: list[Entity]):
     print(f"Storing {len(entities)} entities in the database...")
     with driver.session() as session:
         for entity in entities:
-            print(f". Storing entity {entity.id}")
-            print(f". Subject statement IDs: {entity.subject_statement_ids}")
-            print(f". Object statement IDs: {entity.object_statement_ids}")
-            session.run(UPSERT_ENTITY, params(entity)).consume()
-            print(f". Linking statements for entity {entity.id}")
-            print(f". Subject statement IDs: {entity.subject_statement_ids}")
-            for sid in entity.subject_statement_ids:
-                print(f".   Linking entity {entity.id} as subject to statement {sid}")
-                session.run(LINK_SUBJECT, {"statement_id": int(sid), "entity_id": int(entity.id)}).consume()
-            print(f". Object statement IDs: {entity.object_statement_ids}")
-            for oid in entity.object_statement_ids:
-                print(f".   Linking entity {entity.id} as object to statement {oid}")
-                session.run(LINK_OBJECT, {"statement_id": int(oid), "entity_id": int(entity.id)}).consume()
+            try:
+                print(f" Storing entity {entity.id}")
+                session.run(UPSERT_ENTITY, params(entity)).consume()
+                for sid in entity.subject_statement_ids:
+                    print(f"    Linking entity {entity.id} as subject to statement {sid}")
+                    session.run(LINK_SUBJECT, {"statement_id": int(sid), "entity_id": int(entity.id)}).consume()
+                for oid in entity.object_statement_ids:
+                    print(f"    Linking entity {entity.id} as object to statement {oid}")
+                    session.run(LINK_OBJECT, {"statement_id": int(oid), "entity_id": int(entity.id)}).consume()
+            except Exception as e:
+                print(f"[ERROR] Failed to store entity {entity}: {e}")
 
 
 def search(
