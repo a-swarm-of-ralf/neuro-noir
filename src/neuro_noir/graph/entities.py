@@ -104,6 +104,14 @@ def params(entity: Entity) -> dict:
 
 
 def record_to_entity(record: dict) -> Entity:
+    reserved = {"subject_statement_ids", "object_statement_ids", "entity_id", "canonical_name", "aliases", "type", "category", "description", "explanation", "name_embedding", "profile_embedding", "attribute_keys"}
+
+    attrs = (
+        {k: str(record[k]) for k in record.get("attribute_keys", []) if k not in reserved}
+        if "attribute_keys" in record else
+        {}
+    )
+
     return Entity(
         id=int(record["entity_id"]),
         name=record["canonical_name"],
@@ -114,7 +122,7 @@ def record_to_entity(record: dict) -> Entity:
         explanation=record["explanation"],
         name_embedding=record["name_embedding"],
         profile_embedding=record["profile_embedding"],
-        attributes={k: record[k] for k in record["attribute_keys"]} if "attribute_keys" in record else {},
+        attributes=attrs,
         subject_statement_ids=record.get("subject_statement_ids", []),
         object_statement_ids=record.get("object_statement_ids", [])
     )

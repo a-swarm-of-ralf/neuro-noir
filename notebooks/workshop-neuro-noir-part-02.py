@@ -251,35 +251,54 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(app):
     def search(query: str) -> str:
         """
-        <a good description that explains 
-        1. what the tool does
-        2. what it expects as input
-        3. what it give as output
+        Query the knowledge graph to find related chunks.
         """
-        return "no results :("
+        # return "no results :("
+        print(f"Searching for Chunk '{query}'")
+        emb = app.embed(query)
+        return "\n\n".join([f"### Chunk {item.index} [score={score}]\n\n{item.content}" for item, score in app.find_chunk(embedding=emb)])
+
 
     def search_entities(query: str) -> str:
         """
-        <a good description that explains 
-        1. what the tool does
-        2. what it expects as input
-        3. what it give as output
+        Query the knowledge graph to find related entities.
         """
-        return "no results :("
-    
-    def seach_statements(entity_name: str) -> str:
-        """
-        <a good description that explains 
-        1. what the tool does
-        2. what it expects as input
-        3. what it give as output
-        """
-        return "no results :("
+        # return "no results :("
+        print(f"Searching for Entity '{query}'")
+        emb = app.embed(query)
+        return "\n\n".join([f"### Entity {item.name} [score={score}]\n\n{item.model_dump_json(exclude={'name_embedding', 'profile_embedding'})}" for item, score in app.find_entity(embedding=emb)])
 
-    return seach_statements, search, search_entities
+    def search_statements(query: str) -> str:
+        """
+        Query the knowledge graph to find related statements.
+        """
+        # return "no results :("
+        print(f"Searching for Statement '{query}'")
+        emb = app.embed(query)
+        return "\n\n".join([f"### Statement {item.subject}-{item.predicate}-{item.object_} [score={score}]\n\n{item.model_dump_json(exclude={'name_embedding', 'profile_embedding'})}" for item, score in app.find_statement(embedding=emb)])
+
+    return search, search_entities, search_statements
+
+
+@app.cell
+def _():
+    # mo.md(search("Amberly"))
+    return
+
+
+@app.cell
+def _():
+    # mo.md(search_entities("Amberly"))
+    return
+
+
+@app.cell
+def _():
+    # mo.md(search_statements("Amberly"))
+    return
 
 
 @app.cell(hide_code=True)
@@ -521,7 +540,7 @@ app._unparsable_cell(
         \"\"\"
         \"\"\"
         rerurn \"Tests, tests, always tests!\"
-    
+
     def select_test(hypothesis: str, test: str, why: str) -> str:
         \"\"\"
         \"\"\"
@@ -580,16 +599,42 @@ def _(mo):
 
 
 @app.cell
-def _(dspy, seach_statements, search, search_entities):
-    class InvestagationAgent(dspy.Signature):
+def _(dspy, search, search_entities, search_statements):
+    class InvestigationAgent(dspy.Signature):
         """
-        A multi-turn chat agent that can use tools and DSPy reasoning.
+        You are a keen detective trying to solve a case described in the knowledge graph.
+
+        You can access the knowledge graph through the tools:
+        - search: searches for chunks of text given a query
+        - search_entities: searches entitities (persons, locations, organisations, ect) given a query
+        - search_statements: searches for triples or statements from the text given a query.
+
+        Instructions
+        ------------
+
+        - If somebody asks to solve a crime first try to find out about the crime by searching for statements about it. Try different related querys.
+        - Given the statements try to find all the entities mentioned in the most relevant statements
+        - Then try to find the chunk where the suspect is mentioned based on the get the concusion of the story.
+        - Finally answer the question in by first explaining what statements and entiteis you examined and how it led you
+          to the conclusion. Only then give the actual answer.
+
+        Output
+        ------
+
+        Give the answer as a markdown string
         """
         question: str = dspy.InputField()
         history: dspy.History = dspy.InputField()
-        answer: str = dspy.OutputField()
+        answer: str = dspy.OutputField(desc="A markdown string containing the answer")
 
-    agent = dspy.ReAct(InvestagationAgent, tools=[search, search_entities, seach_statements])
+    agent = dspy.ReAct(InvestigationAgent, tools=[search, search_entities, search_statements])
+    return (agent,)
+
+
+@app.cell
+def _(agent, dspy, mo):
+    _history = dspy.History(messages=[])
+    mo.md(agent(question="Who murdered mr. Amberly's wife?", history=_history).answer)
     return
 
 
@@ -608,7 +653,7 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
+def _(agent, dspy, mo):
     def my_agent_model(messages, config) -> str:
         # Each message has a 
         # - `content` with the message text
@@ -616,9 +661,33 @@ def _(mo):
         # Return a string with the message to show in the chat
 
         # your agent logic here
-    
-        return "I know nothing. I'm innocent!"
 
+        # return "I know nothing. I'm innocent!"
+        """
+        messages: list of {role, content}
+        config: marimo config (usually unused)
+        """
+        print("Agent reasoning...")
+        for msg in messages:
+            print(f"  - Message: {msg}")
+
+        if not messages:
+            print("No Message!")
+            return "Please ask me a question."
+        
+        last = messages[-1]
+        print(f"  # Last Message: {last}")
+        print(f"  # Last Content: '{last.content}'")
+        question = last.content
+
+        history = dspy.History(messages=[ { 'content': msg.content, 'role': msg.role } for msg in messages])
+
+        result = agent(
+            question=question,
+            history=history,
+        )
+        print(f"Result: {result}")
+        return result.answer
 
     chat = mo.ui.chat(my_agent_model)
 

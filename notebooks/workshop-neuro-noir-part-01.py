@@ -418,8 +418,10 @@ def _(app):
     # app.find_chunk(embedding=_emb2)
     # app.find_statement(embedding=_emb2)
     # app.find_entity(embedding=_emb2)
-
-    app.cypher_query(query="MATCH (n:Entity) RETURN n LIMIT 25")
+    def without_key(d: dict, key: str) -> dict:
+        return {k: v for k, v in d.items() if k != key}
+    
+    [without_key(dict(item["n"]), "embedding") for item in app.cypher_query(query="MATCH (n:Chunk) RETURN n LIMIT 25")]
     return
 
 
