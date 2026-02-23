@@ -54,6 +54,8 @@ class Chunk(BaseModel):
                 print(f"[ERROR] Could not parse statement {statement_dict}: {e}")
             except ValueError as e:
                 print(f"[ERROR] Could not process statemnt {idx}: {e}")
+            except Exception as e:
+                print(f"[ERROR] Unexpected error processing statement {idx}: {e}")
 
         name_strings = [s.name_string() for s in self.statements]
 
