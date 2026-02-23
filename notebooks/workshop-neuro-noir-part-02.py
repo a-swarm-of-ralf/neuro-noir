@@ -233,7 +233,7 @@ def _(mo):
     - `app.find_chunk(embedding: list[float]) -> list[Chunk]` gives the closest _n_ chunks
     - `app.find_statement(embedding: list[float]) -> list[Statement]` gives the closest _n_ statements
     - `app.find_entity(embedding: list[float]) -> list[Entity]` gives the closest _n_ entities
-    - `app.direct(cypher_query: str) -> list[dict]` executes a cypher query directly on the neo4j database
+    - `app.cypher_query(cypher_query: str) -> list[dict]` executes a cypher query directly on the neo4j database
 
     /// admonition | Exercise 1
 
@@ -285,37 +285,12 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Creating Advanced Query Tools
+    ## Creating Advanced Tools
 
-    In the previous section, you built basic tools that expose simple, direct queries to the knowledge graph. These tools are sufficient for retrieving individual facts, but real investigations rarely depend on single, isolated pieces of information.
+    In the previous section, you built basic tools that expose simple, direct queries to the knowledge graph. These tools are sufficient for retrieving individual facts, but real investigations rarely depend on single, isolated pieces of information. Advanced tools on the other hand are about navigating the graph. Traversal is an essential component of symbolic reasoning. It can answer questions like how are entity X and entity Y connected.
 
-    In this section, you will extend your toolkit with more powerful, higher-level query functions. These **advanced query tools** allow the agent to perform multi-step retrieval, semantic search, and filtered exploration of the graph.
-
-    They enable the agent to ask more sophisticated questions and receive richer, more meaningful answers.
-
-    ---
-
-    ### From Simple Lookups to Exploratory Queries
-
-    Basic tools answer questions like:
-
-    - “Which statements mention this entity?”
-    - “Which chunks belong to this document?”
-    - “What is the description of this entity?”
-
-    Advanced tools answer questions like:
-
-    - “Which suspects were at this location near the time of the crime?”
-    - “Which statements contradict this alibi?”
-    - “Which entities are semantically similar to this description?”
-    - “What evidence supports or weakens this hypothesis?”
-
-    To support these queries, you will combine multiple graph operations, filters, and embedding-based searches into single, reusable functions.
-
-    ---
-
-    ### Combining Structure and Semantics
-
+    /// details | Combining Structure and Semantics
+        type: info
     Your knowledge graph contains two complementary forms of information:
 
     - **Symbolic structure**: nodes, relationships, labels, and constraints
@@ -332,10 +307,10 @@ def _(mo):
 
     This hybrid approach is what allows agents to move beyond keyword matching and perform context-aware retrieval.
 
-    ---
+    ///
 
-    ### Designing Powerful but Safe Tools
-
+    /// details | Keeping it Safe
+        type: info
     As tools become more expressive, it becomes more important to control their behavior.
 
     When writing advanced query tools, aim for:
@@ -357,10 +332,10 @@ def _(mo):
 
     These practices help ensure that increased power does not lead to instability.
 
-    ---
+    ///
 
-    ### Advanced Tools as Building Blocks
-
+    /// details | What can we do with advanced tools?
+        type: info
     Think of advanced query tools as “macro-operations” built on top of basic primitives.
 
     They encapsulate common investigative patterns and make them reusable:
@@ -373,151 +348,105 @@ def _(mo):
 
     By packaging these patterns into tools, you simplify the reasoning layer and reduce the burden on the agent.
 
-    ---
+    ///
 
-    ### Exercise: Implement Advanced Query Tools
+    /// admonition | Exercise 2
 
-    In this exercise, you will design and implement tools that:
+    Below are two skeletons for more advance tools. Complete these tools so
 
-    - Perform multi-hop graph traversals
-    - Integrate vector similarity search
-    - Aggregate and rank evidence
-    - Support hypothesis-driven queries
+    - `connected`: Given two entities return how they are connected in the graph.
+    - `related`: Given an entity find all related entities.
 
-    You will test these tools against realistic investigative scenarios and evaluate how their design influences downstream reasoning.
-
-    These tools will form the backbone of your agent’s analytical capabilities.
+    ///
     """)
+    return
+
+
+@app.cell
+def _():
+    def connected(entity1: str, entity2: str) -> str:
+        """
+        Find the shortest path between entity1 and entity2.
+
+        Returns:
+            str: The shortest path found between entity1 and entity2.
+        """
+        return "I refuse!"
+
+    def related(entity: str) -> list[str]:
+        """
+        Find all entities that are related to the specified entity.
+        """
+        return "I don';t want to know you!"
+
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Assembling the Evidence Context
+    ## From Facts to Knowledge
 
     In the previous section, you built a collection of tools that allow an agent to retrieve individual pieces of information from the knowledge graph. While these tools are powerful, each one only provides a small, isolated view of the case.
 
-    In this section, you will learn how to combine those individual results into a unified **evidence context**: a structured representation of everything the agent currently knows about the investigation. This context will serve as the agent’s working memory and reasoning substrate.
+    To keep thing more coherent we allow the agent to create new node and assoiations. Then it can build up a context and remmeber deductions it made.
 
-    Without this step, agents tend to reason in fragments. With it, they can reason coherently.
+    /// details | Isn't that dangerous?
+        type: info
 
-    ---
+    Yes!
 
-    ### From Isolated Queries to Case Files
+    Language models are by their very nature unpredictable. Allowing them to make actual changes to you data or files can lead to destrcutive results.
 
-    A real investigator does not reason from a single fact at a time. They build a mental “case file” that contains suspects, timelines, motives, alibis, and contradictions.
+    In this context we mitigate it by allowing the agent to only add, and by only allowing to maipulate certain type of nodes. We introduce a Evidence type for this. So our entities and statements are safe while the agent creates and links just evidence nodes. Furthermore retraction does not involve deletion but adding invalidation data to the evidence, so the agent can only add, never remove data.
 
-    Your agent needs the same.
+    ///
 
-    Instead of working with raw tool outputs, you will construct a consolidated structure that brings together:
+    /// admonition | Exercise 3
 
-    - Relevant entities and their roles
-    - Supporting and conflicting statements
-    - Temporal and spatial information
-    - Relationships between suspects, locations, and events
-    - Degrees of uncertainty or confidence
+    Create the following tools for our agent. These tools require adding nodes and there inputs are more complex than before.
 
-    This assembled context transforms scattered facts into an analyzable model of the case.
+    - `assert_evidence`: Create new evidence node.
+    - `retract_evidence`: Invalidate evidence node.
 
-    ---
-
-    ### Why Evidence Assembly Matters
-
-    Language models are good at pattern recognition, but they are sensitive to how information is presented. If evidence is fragmented, duplicated, or inconsistently formatted, reasoning becomes unreliable.
-
-    A well-designed evidence context provides:
-
-    - **Completeness**: All relevant facts are visible at once
-    - **Consistency**: Information is normalized and aligned
-    - **Traceability**: Each conclusion can be linked back to sources
-    - **Stability**: Small changes in retrieval do not cause large changes in reasoning
-
-    This makes later reasoning steps more robust and easier to evaluate.
-
-    ---
-
-    ### Designing an Evidence Context
-
-    In this workshop, your evidence context will act as an intermediate data structure between retrieval and reasoning.
-
-    It will typically include:
-
-    - A list of suspects and related entities
-    - Statements grouped by role and relevance
-    - Timeline elements and location references
-    - Known motives, means, and opportunities
-    - Explicit contradictions and uncertainties
-
-    Rather than being free-form text, this context will be structured and predictable. This allows both humans and agents to understand and inspect it.
-
-    Think of it as a machine-readable case file.
-
-    ---
-
-    ### Exercise: Build the Evidence Assembly Layer
-
-    In this exercise, you will implement functions that:
-
-    - Collect outputs from multiple graph tools
-    - Merge and normalize overlapping information
-    - Filter irrelevant or low-quality evidence
-    - Produce a consistent context object for reasoning
-
-    You will experiment with different ways of representing evidence and observe how these choices affect downstream reasoning.
-
-    This layer is where raw data becomes insight.
-    Design it carefully.
+    ///
     """)
+    return
+
+
+@app.cell
+def _():
+    def assert_evidence(name: str, description: str, derived_from: str, explanation: str) -> str:
+        """
+        Creates a new evidence node linked to the 'derived_from' node.
+        """
+        return "You can't proof anything!"
+
+    def retract_evidence(name: str, explanation: str) -> str:
+        """
+        Invalidates an existing evidence node.
+        """
+        return "No Mister Bond, I expect you to die."
+
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Designing Reasoning Steps
+    ## Reasoning
 
-    With a structured evidence context in place, your agent now has access to a coherent and comprehensive view of the case. The next step is to define **how the agent should reason with this information**.
+    Up until now we created tools that access and manipulate the knowledge graph. That we created these tools and given them to our agent does not mean the agent knows how to use them effectively. Reasoning tools provide the guidance the agent need to create plans to test for the answer. In other words, thereason provides the rules that govern hypotheis testing and validation.
 
-    In this section, you will move from “having data” to “drawing conclusions.” You will design explicit reasoning procedures that transform evidence into hypotheses, evaluations, and decisions.
-
-    Rather than relying on vague prompting, you will encode reasoning as a sequence of deliberate, inspectable steps.
-
-    ---
-
-    ### From Information to Inference
-
-    Reasoning is not about producing an answer. It is about justifying why that answer makes sense.
-
-    A human investigator might ask:
+    Think questions like:
 
     - Who had motive, means, and opportunity?
     - Which alibis are consistent with the timeline?
     - Which statements contradict each other?
     - What assumptions are still unverified?
 
-    Your agent must learn to ask similar questions.
-
-    You will translate these intuitive reasoning patterns into formal procedures that operate on the evidence context.
-
-    ---
-
-    ### Why Structured Reasoning Matters
-
-    When reasoning is left entirely to free-form generation, it becomes difficult to predict, evaluate, or improve. Small changes in phrasing can lead to different conclusions, and errors are hard to trace.
-
-    By introducing explicit reasoning steps, you gain:
-
-    - **Transparency**: You can see how conclusions are formed
-    - **Repeatability**: The same evidence leads to the same outcome
-    - **Debuggability**: Mistakes can be traced to specific steps
-    - **Composability**: Reasoning components can be reused and extended
-
-    This turns “thinking” into something you can engineer.
-
-    ---
-
-    ### Common Reasoning Patterns
+    /// details | Common Reasoning Patterns
+        type: info
 
     In this workshop, you will work with several recurring patterns, such as:
 
@@ -528,41 +457,88 @@ def _(mo):
     - **Belief revision**: Updating conclusions when new evidence appears
 
     These patterns form the backbone of many real-world analytical systems.
+    ///
 
-    ---
 
-    ### Designing Reasoning Pipelines
+    /// details | Hybrid Tools
+        type: info
 
-    Rather than a single monolithic prompt, you will build a reasoning pipeline composed of multiple stages.
+    The agent is powered by a large language model. The tools we have created up until now
+    have not used any models (except teh embbedings). Many of the task we want to do in
+    this step can be done with pure reasoning, but sometimes can also benfit from a
+    limited scope agent in itsself.
 
-    Typical stages include:
+    Bridging inputs and outputs between a rule engine to actually perform the reasoning
+    could be a hybrid task for example.
+    ///
 
-    1. Generate candidate hypotheses
-    2. Gather supporting and opposing evidence
-    3. Apply logical and temporal constraints
-    4. Rank remaining possibilities
-    5. Produce an explanation
 
-    Each stage has a clear role and can be tested independently.
+    /// details | Reasoning Loop
+        type: info
 
-    This modular design makes your system more robust and easier to evolve.
+    In symbolic AI reasoning follows specific patterns depending on the exact task at hand. In
+    this case it would follow the diagnose pattern. This pattern has a reasoning loop consiting
+    following steps:
 
-    ---
+    - **Hypotheses Selection**
+    - **Test Selection**
+    - **Test Evaluation**
+    - **Hypotheses Evaluation**
 
-    ### Exercise: Implement Structured Reasoning Steps
+    These step are ussually executed in oder in a loop. Sometimes this also include **Hypothesis Generation**, **Test Generation**, and **Conclusion** as extra steps.
 
-    In this exercise, you will implement functions that:
+    ///
 
-    - Consume the assembled evidence context
-    - Apply explicit reasoning patterns
-    - Produce ranked hypotheses and explanations
-    - Expose intermediate results for inspection
+    /// admonition | Exercise 4
 
-    You will experiment with different reasoning strategies and observe how they affect accuracy, stability, and interpretability.
+    Create the the tools to perform the reasoning loop.
 
-    This is where your agent’s “intelligence” is engineered—step by step.
+    - `generate_hypotheses`: Generate possible hypothesis
+    - `select_hypothesis`:
+    - `generate_tests`:
+    - `select_test`:
+    - `evaluate_test`:
+    - `evaluate_hypothesis`:
+
+    ///
     """)
     return
+
+
+app._unparsable_cell(
+    """
+    def generate_hypotheses() -> list[str]:
+        \"\"\"
+        \"\"\"
+        return \"It's just a theory.\"
+
+    def select_hypothesis(hypothesis: str) -> list[str]:
+        \"\"\"
+        \"\"\"
+        return \"It's just a theory.\"
+
+    def generate_tests(hypothesis: str) -> str:
+        \"\"\"
+        \"\"\"
+        rerurn \"Tests, tests, always tests!\"
+    
+    def select_test(hypothesis: str, test: str, why: str) -> str:
+        \"\"\"
+        \"\"\"
+        return \"Well it measures, ... something...\"
+
+    def evaluate_test(hypothesis: str, test: str) -> str:
+        \"\"\"
+        \"\"\"
+        return \"Mainstream scientists are not addressing the issues.\"
+
+    def evaluate_hypothesis(hypothesis: str, how: str) -> str:
+        \"\"\"
+        \"\"\"
+        return \"Mainstream scientists are not addressing the issues.\"
+    """,
+    name="_"
+)
 
 
 @app.cell(hide_code=True)
@@ -588,7 +564,7 @@ def _(mo):
 
     In this section, you will transform this bare-bones structure into a system that can actively explore the knowledge graph, evaluate evidence, and justify its conclusions. This is where all previous work comes together.
 
-    /// admonition | Exercise 6
+    /// admonition | Exercise 5
 
     Complete the investigation agent by performing the following steps:
 
@@ -622,7 +598,7 @@ def _(mo):
     mo.md(r"""
     ### Chat UI
 
-    /// admonition | Exercise 7.
+    /// admonition | Exercise 6.
 
     Integrate your agent with the chat ui skelton in the cell below.
 
@@ -782,8 +758,11 @@ def _(
         mo.md(f"## {mo.icon('fluent-color:edit-20')} Excercises"),
         mo.nav_menu({
             "#implement-basic-graph-tools": f"1. Implement Basic Graph Tools",
-            "#assemble-the-investigation-agent": f"6. Assemble Agent",
-            "#chat-ui": f"7. Chat UI",
+            "#creating-advanced-tools": f"2. Creating Advanced Tools",
+            "#from-facts-to-knowledge": f"3. From Facts to Knowledge",
+            "#reasoning": f"4. Reasoning",
+            "#assemble-the-investigation-agent": f"5. Assemble Agent",
+            "#chat-ui": f"6. Chat UI",
         },
         orientation="vertical",
         ),
