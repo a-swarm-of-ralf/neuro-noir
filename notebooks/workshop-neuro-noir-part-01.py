@@ -413,9 +413,13 @@ def _(mo):
 @app.cell
 def _(app):
     # app.search_chunks("Blackheath Station")
-    _emb1 = app.embed("Blackheath Station")
-    _emb2 = app.embed("Josiah Amberly")
-    app.find_chunk(embedding=_emb2)
+    # _emb1 = app.embed("Blackheath Station")
+    # _emb2 = app.embed("Josiah Amberly")
+    # app.find_chunk(embedding=_emb2)
+    # app.find_statement(embedding=_emb2)
+    # app.find_entity(embedding=_emb2)
+
+    app.cypher_query(query="MATCH (n:Entity) RETURN n LIMIT 25")
     return
 
 
@@ -742,8 +746,14 @@ def _(BaseModel, Field, Optional, app):
         """
         is_good: str = Field(default="", description="Is it a good or bad mood?",)
 
+    class Motive(BaseModel):
+        """
+        A motive somebody has to possibly commit a crime
+        """
+        why: str = Field(default="", description="Why would this be a motive?",)
+
     app.clear_entities_and_relationships()
-    app.register_entities([Person, Organization, Location, Item, Mood])
+    app.register_entities([Person, Organization, Location, Item, Mood, Motive])
     return
 
 

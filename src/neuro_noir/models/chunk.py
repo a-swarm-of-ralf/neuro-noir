@@ -40,6 +40,14 @@ class Chunk(BaseModel):
         for idx, statement_dict in enumerate(result.statements):
             try:
                 statement = Statement(**statement_dict, id=starting_id + idx, document_id=self.document_id, chunk_index=self.index)
+                if statement.object_ is None:
+                    statement.object_ = ""
+                if statement.modality is None:
+                    statement.modality = []
+                if statement.subject is None:
+                    statement.subject = ""
+                if statement.predicate is None:
+                    statement.predicate = ""
                 statement.attributes = {k: v for k, v in statement_dict.items() if k not in {"subject", "predicate", "object", "modality", "sentence", "explanation", "name_embedding", "profile_embedding", "id", "document_id", "chunk_index"}}
                 self.statements.append(statement)
             except ValidationError as e:
@@ -75,6 +83,8 @@ class Chunk(BaseModel):
                 print(f"[ERROR] Could not parse entity {idx}-{entity_dict}: {e}")
             except ValueError as e:
                 print(f"[ERROR] Could not process entity {idx}-{entity_dict}: {e}")
+            except Exception as e:
+                print(f"[ERROR] Unexpected error processing entity {idx}-{entity_dict}: {e}")
 
         name_strings = [e.name_string() for e in self.entities]
         profile_strings = [e.profile_string() for e in self.entities]
