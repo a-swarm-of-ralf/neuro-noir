@@ -71,7 +71,7 @@ def params(statement: Statement) -> dict:
         "chunk_id": f"{statement.document_id}_{statement.chunk_index}",
         "subject": statement.subject,
         "predicate": statement.predicate,
-        "object": statement.object_,
+        "object": statement.object_ if statement.object_ else "",
         "modality": statement.modality,
         "sentence": statement.sentence,
         "explanation": statement.explanation,

@@ -11,7 +11,7 @@ class Statement(BaseModel):
         chunk_index: int = Field(default=0, exclude=True, description="The index of the chunk this statement belongs to.")
         subject: str = Field(default="", description="Canonical form of the subject of the statement. Should be single noun or pronoun with at most one adjective. For example, if the sentence is 'The big cat is on the mat', the subject would be 'big cat'. If the sentence is 'She is happy', the subject would be 'She' but use the actual canonical form to which it refers, for example 'the woman' or 'Marta'if clear form the surrounding context.")
         predicate: str = Field(default="", description="The root of the verb or predicate of the statement. Use the root of the verb with a possible preposition, but *without* any auxiliary verbs or negations.")
-        object_: str = Field(default="", alias="object", description="Canonical form of the object of the statement. Should be single noun or pronoun with at most one adjective.")
+        object_: str | None = Field(default="", alias="object", description="Canonical form of the object of the statement. Should be single noun or pronoun with at most one adjective.")
         modality: list[str] = Field(default_factory=list, description="The modality of the statement, which can be one or more of the following: 'assertion', 'negation', 'possibility', 'speculation', 'question', 'hypothetical', or others. This indicate how the predicate relates the subject and object. For example, if the statement is 'The cat is on the mat', the modality would be 'assertion'. If the statement is 'The cat might be on the mat', the modality would be 'possibility'. If the statement is 'Is the cat on the mat?', the modality would be 'question'.")
         sentence: str = Field(default="", description="The sentence from the text the statement appears in.")
         explanation: str = Field(default="", description="An explanation of the statement and how the subject, predicate and object were derived from it.")
@@ -26,14 +26,14 @@ class Statement(BaseModel):
                 Generate a name string for the statement by concatenating the subject, predicate and object with spaces in between.
                 This can be used as a canonical name for the statement in the graph database.
                 """
-                return self.subject + " " + self.predicate + " " + self.object_
+                return self.subject + " " + self.predicate + " " + (self.object_ if self.object_ else "")
         
         def profile_string(self) -> str:
                 """
                 Generate a profile string for the statement by concatenating the subject, predicate, object, modality, sentence and explanation with spaces in between.
                 This can be used as a more detailed representation of the statement for embedding and similarity comparisons.
                 """
-                return self.subject + " " + self.predicate + " " + self.object_ + " " + str(self.modality) + " " + self.sentence + " " + self.explanation
+                return self.subject + " " + self.predicate + " " + (self.object_ if self.object_ else "") + " " + str(self.modality) + " " + self.sentence + " " + self.explanation
         
         def embed(self, cfg: Settings) -> Self:
                 """
@@ -41,7 +41,7 @@ class Statement(BaseModel):
                 The embedding function should take a string input and return a list of floats representing the embedding vector.
                 """
                 if self.subject or self.predicate or self.object_:
-                        self.name_embedding = embed_document(cfg=cfg, contents=self.subject + " " + self.predicate + " " + self.object_)[0]
+                        self.name_embedding = embed_document(cfg=cfg, contents=self.name_string())[0]
                 if self.subject or self.predicate or self.object_ or self.modality or self.sentence or self.explanation:
-                        self.profile_embedding = embed_document(cfg=cfg, contents=self.subject + " " + self.predicate + " " + self.object_ + " " + str(self.modality) + " " + self.sentence + " " + self.explanation)[0]
+                        self.profile_embedding = embed_document(cfg=cfg, contents=self.profile_string())[0]
                 return self
