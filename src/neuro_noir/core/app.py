@@ -230,3 +230,19 @@ class Application:
         with driver.session() as session:
             response = session.run(query, parameters=args)
             return [ dict(rec) for rec in response ]
+        
+    def find_entity_by_id(self, entity_id: int) -> Entity | None:
+        driver = connect_neo4j(self.cfg, cache=False)
+        return entities.find_by_id(driver, entity_id)
+    
+    def find_statement_by_id(self, statement_id: int) -> Statement | None:
+        driver = connect_neo4j(self.cfg, cache=False)
+        return statements.find_by_id(driver, statement_id)
+    
+    def find_next_entity(self, offset: int = 0) -> Entity | None:
+        driver = connect_neo4j(self.cfg, cache=False)
+        return entities.find_next(driver, offset=offset)
+    
+    def count_entities(self) -> int:
+        driver = connect_neo4j(self.cfg, cache=False)
+        return entities.count(driver)

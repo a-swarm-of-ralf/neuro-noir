@@ -114,7 +114,7 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo):
     mo.md(rf"""
     ## Contents
@@ -255,36 +255,26 @@ def _(mo):
 
 
 @app.cell
-def _(app):
+def _():
     def search(query: str) -> str:
         """
         Query the knowledge graph to find related chunks.
         """
-        # return "no results :("
-        print(f"Searching for Chunk '{query}'")
-        emb = app.embed(query)
-        return "\n\n".join([f"### Chunk {item.index} [score={score}]\n\n{item.content}" for item, score in app.find_chunk(embedding=emb)])
-
-
+        return "no results :("
+    
     def search_entities(query: str) -> str:
         """
         Query the knowledge graph to find related entities.
         """
-        # return "no results :("
-        print(f"Searching for Entity '{query}'")
-        emb = app.embed(query)
-        return "\n\n".join([f"### Entity {item.name} [score={score}]\n\n{item.model_dump_json(exclude={'name_embedding', 'profile_embedding'})}" for item, score in app.find_entity(embedding=emb)])
+        return "no results :("
 
     def search_statements(query: str) -> str:
         """
         Query the knowledge graph to find related statements.
         """
-        # return "no results :("
-        print(f"Searching for Statement '{query}'")
-        emb = app.embed(query)
-        return "\n\n".join([f"### Statement {item.subject}-{item.predicate}-{item.object_} [score={score}]\n\n{item.model_dump_json(exclude={'name_embedding', 'profile_embedding'})}" for item, score in app.find_statement(embedding=emb)])
+        return "no results :("
 
-    return search, search_entities, search_statements
+    return (search,)
 
 
 @app.cell
@@ -528,40 +518,39 @@ def _(mo):
     return
 
 
-app._unparsable_cell(
-    """
+@app.cell
+def _():
     def generate_hypotheses() -> list[str]:
-        \"\"\"
-        \"\"\"
-        return \"It's just a theory.\"
+        """
+        """
+        return "It's just a theory."
 
     def select_hypothesis(hypothesis: str) -> list[str]:
-        \"\"\"
-        \"\"\"
-        return \"It's just a theory.\"
+        """
+        """
+        return "It's just a theory."
 
     def generate_tests(hypothesis: str) -> str:
-        \"\"\"
-        \"\"\"
-        rerurn \"Tests, tests, always tests!\"
+        """
+        """
+        return "Tests, tests, always tests!"
 
     def select_test(hypothesis: str, test: str, why: str) -> str:
-        \"\"\"
-        \"\"\"
-        return \"Well it measures, ... something...\"
+        """
+        """
+        return "Well it measures, ... something..."
 
     def evaluate_test(hypothesis: str, test: str) -> str:
-        \"\"\"
-        \"\"\"
-        return \"Mainstream scientists are not addressing the issues.\"
+        """
+        """
+        return "Mainstream scientists are not addressing the issues."
 
     def evaluate_hypothesis(hypothesis: str, how: str) -> str:
-        \"\"\"
-        \"\"\"
-        return \"Mainstream scientists are not addressing the issues.\"
-    """,
-    name="_"
-)
+        """
+        """
+        return "Mainstream scientists are not addressing the issues."
+
+    return
 
 
 @app.cell(hide_code=True)
@@ -603,35 +592,16 @@ def _(mo):
 
 
 @app.cell
-def _(dspy, search, search_entities, search_statements):
+def _(dspy, search):
     class InvestigationAgent(dspy.Signature):
         """
-        You are a keen detective trying to solve a case described in the knowledge graph.
-
-        You can access the knowledge graph through the tools:
-        - search: searches for chunks of text given a query
-        - search_entities: searches entitities (persons, locations, organisations, ect) given a query
-        - search_statements: searches for triples or statements from the text given a query.
-
-        Instructions
-        ------------
-
-        - If somebody asks to solve a crime first try to find out about the crime by searching for statements about it. Try different related querys.
-        - Given the statements try to find all the entities mentioned in the most relevant statements
-        - Then try to find the chunk where the suspect is mentioned based on the get the concusion of the story.
-        - Finally answer the question in by first explaining what statements and entiteis you examined and how it led you
-          to the conclusion. Only then give the actual answer.
-
-        Output
-        ------
-
-        Give the answer as a markdown string
+        <intructions here>
         """
         question: str = dspy.InputField()
         history: dspy.History = dspy.InputField()
         answer: str = dspy.OutputField(desc="A markdown string containing the answer")
 
-    agent = dspy.ReAct(InvestigationAgent, tools=[search, search_entities, search_statements])
+    agent = dspy.ReAct(InvestigationAgent, tools=[search,]) # add tools to tools parameter list
     return (agent,)
 
 
@@ -657,7 +627,7 @@ def _(mo):
 
 
 @app.cell
-def _(agent, dspy, mo):
+def _(mo):
     def my_agent_model(messages, config) -> str:
         # Each message has a 
         # - `content` with the message text
@@ -666,32 +636,7 @@ def _(agent, dspy, mo):
 
         # your agent logic here
 
-        # return "I know nothing. I'm innocent!"
-        """
-        messages: list of {role, content}
-        config: marimo config (usually unused)
-        """
-        print("Agent reasoning...")
-        for msg in messages:
-            print(f"  - Message: {msg}")
-
-        if not messages:
-            print("No Message!")
-            return "Please ask me a question."
-        
-        last = messages[-1]
-        print(f"  # Last Message: {last}")
-        print(f"  # Last Content: '{last.content}'")
-        question = last.content
-
-        history = dspy.History(messages=[ { 'content': msg.content, 'role': msg.role } for msg in messages])
-
-        result = agent(
-            question=question,
-            history=history,
-        )
-        print(f"Result: {result}")
-        return result.answer
+        return "I know nothing. I'm innocent!"
 
     chat = mo.ui.chat(my_agent_model)
 
@@ -717,7 +662,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(app, list_datasets, mo):
     run_test_neo4j = mo.ui.run_button(label="Test Database", kind="info", full_width=True)
     run_test_dspy = mo.ui.run_button(label="Test Completion", kind="info", full_width=True)
@@ -744,7 +689,7 @@ def _(app, list_datasets, mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(app, cases_dropdown, run_load_case):
     doc = app.doc
     if run_load_case.value:
@@ -752,7 +697,7 @@ def _(app, cases_dropdown, run_load_case):
     return (doc,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(app, do_the_chunking, run_chunk_case, user_name):
     chunks = []
     if run_chunk_case.value:
@@ -760,7 +705,7 @@ def _(app, do_the_chunking, run_chunk_case, user_name):
     return (chunks,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(chunks, mo):
     if len(chunks) > 1:
         chunk_carousel = mo.carousel([ mo.callout(mo.md(f"#### Chunk {chunk.index}\n\n{chunk.content}")) for idx,chunk in enumerate(chunks) ])
@@ -769,7 +714,7 @@ def _(chunks, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(chunks, mo):
     extraction_chunk_limit_slider = mo.ui.slider(
         start=0,
@@ -782,7 +727,7 @@ def _(chunks, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(app, mo, run_delete_neo4j, run_test_neo4j):
     db_ok = False
     db_line = "_not tested yet..._"
@@ -798,7 +743,7 @@ def _(app, mo, run_delete_neo4j, run_test_neo4j):
     return (db_line,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(app, mo, run_test_dspy, run_test_genai):
     lm_ok = False
     lm_line = "_not tested yet..._"
@@ -814,7 +759,7 @@ def _(app, mo, run_test_dspy, run_test_genai):
     return (lm_line,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     db_line,
     doc,
@@ -855,7 +800,7 @@ def _(
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     import nest_asyncio
