@@ -281,6 +281,33 @@ def do_the_chunking(text: str) -> list[str]:
     chunks = []
     # Your chunk logic here
     ...
+    # My Chunk Logic - TODO: Remove before Workshop
+    chunk_size: int = 800
+    min_chunk_size: int = 100
+    paragraphs = [paragraph.strip() for paragraph in text.split("\n\n") if paragraph.strip()]
+    chunk = ""
+    for paragraph in paragraphs:
+        if len(chunk) + len(paragraph) <= chunk_size:
+            # If adding the paragraph doesn't exceed the chunk size, add it to the 
+            # active chunk
+            chunk += "\n\n" + paragraph if chunk else paragraph
+        elif len(chunk) < min_chunk_size:
+            # If active is too small, we don't want to break it up
+            chunk += "\n\n" + paragraph if chunk else paragraph
+        else:
+            # If adding the paragraph exceeds the chunk size, save the active chunk and 
+            # start a new one
+            if chunk:
+                # Only save the active chunk if it's not empty. This could happen if the 
+                # first paragraph is larger than the chunk size, in which case we want to 
+                # save it as its own chunk
+                chunks.append(chunk.strip())
+            chunk = paragraph
+    # The last chunk might not have been added if we reached the end of the paragraphs without 
+    # exceeding the chunk size. Also, the last chunk can be smaller than the min_chunk_size, 
+    # but that's okay since it's the last chunk
+    if chunk:
+        chunks.append(chunk.strip())
     return chunks
 
 
@@ -387,8 +414,17 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(app):
     # app.search_chunks("Blackheath Station")
+    # _emb1 = app.embed("Blackheath Station")
+    # _emb2 = app.embed("Josiah Amberly")
+    # app.find_chunk(embedding=_emb2)
+    # app.find_statement(embedding=_emb2)
+    # app.find_entity(embedding=_emb2)
+    def without_key(d: dict, key: str) -> dict:
+        return {k: v for k, v in d.items() if k != key}
+
+    [without_key(dict(item["n"]), "embedding") for item in app.cypher_query(query="MATCH (n:Chunk) RETURN n LIMIT 25")]
     return
 
 
@@ -447,7 +483,7 @@ def _(extraction_chunk_limit_slider, mo, run_extract_case):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, extraction_chunk_limit_slider, mo, run_extract_case):
     triples = []
     _params = {
@@ -513,7 +549,7 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo, triples):
     mo.ui.table(
         data=[({ 
@@ -690,8 +726,39 @@ def _(BaseModel, Field, Optional, app):
         full_name: Optional[str] = Field(default="", 
             description="Full name of the person as mentioned in the materials.",)
 
+    class Organization(BaseModel):
+        """
+        A company
+        """
+        activities: str = Field(default="", 
+            description="What does the organization do.",)
+
+    class Location(BaseModel):
+        """
+        A location mentioned. Examples 'Home', 'Pemberly Station'
+        """
+        presence: str = Field(default="", description="Who is there.",)
+
+    class Item(BaseModel):
+        """
+        An item that has some relevance, 'a letter', 'weapon', 'violin'
+        """
+        usage: str = Field(default="", description="How is the item used",)
+
+    class Mood(BaseModel):
+        """
+        A mood somebody is in. 'Anger', 'Sadness', 'Happy', 
+        """
+        is_good: str = Field(default="", description="Is it a good or bad mood?",)
+
+    class Motive(BaseModel):
+        """
+        A motive somebody has to possibly commit a crime
+        """
+        why: str = Field(default="", description="Why would this be a motive?",)
+
     app.clear_entities_and_relationships()
-    app.register_entities([Person])
+    app.register_entities([Person, Organization, Location, Item, Mood, Motive])
     return
 
 
@@ -727,7 +794,7 @@ def _(app, extraction_chunk_limit_slider, mo, run_resolve_case):
     return (entities,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(entities, mo):
     mo.ui.table(
         data=[({ 
@@ -783,7 +850,7 @@ def _(mo):
 
 
 @app.cell
-def _(Entity, dspy):
+def _(Entity, app, dspy, mo):
     ENTITY_SCHEMA = Entity.model_json_schema()
     ENTITIES_SCHEMA = {"type": "array", "description": "A list of entities with their aliases and descriptions.", "items": ENTITY_SCHEMA}
 
@@ -819,13 +886,8 @@ def _(Entity, dspy):
             json_schema=ENTITIES_SCHEMA
         )
         merged_entity: str = dspy.OutputField(desc="The target entity merged with candidate entities that refer to the same actaul entity.", json_schema=ENTITY_SCHEMA)
-        merged_candidate_ids: list[int] = dspy.OutputField(desc="A list of ids for candidates that were selected to be merged with the target entity")    
+        merged_candidate_ids: list[int] = dspy.OutputField(desc="A list of ids for candidates that were selected to be merged with the target entity")
 
-    return
-
-
-@app.cell
-def _(app, mo):
     _total = app.count_entities()
     for idx in mo.status.progress_bar(range(_total)):
         _entity = app.find_next_entity(offset=idx)
@@ -833,6 +895,8 @@ def _(app, mo):
             _emb = app.embed(_entity.name)
             _candidates = app.find_entity(_emb)
             ...
+    
+    
     return
 
 
@@ -890,7 +954,7 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, list_datasets, mo):
     run_test_neo4j = mo.ui.run_button(label="Test Database", kind="info", full_width=True)
     run_test_dspy = mo.ui.run_button(label="Test Completion", kind="info", full_width=True)
@@ -919,7 +983,7 @@ def _(app, list_datasets, mo):
     )
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, cases_dropdown, run_load_case):
     doc = app.doc
     if run_load_case.value:
@@ -927,7 +991,7 @@ def _(app, cases_dropdown, run_load_case):
     return (doc,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, run_chunk_case, user_name):
     chunks = []
     if run_chunk_case.value:
@@ -935,7 +999,7 @@ def _(app, run_chunk_case, user_name):
     return (chunks,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(chunks, mo):
     if len(chunks) > 1:
         chunk_carousel = mo.carousel([ mo.callout(mo.md(f"#### Chunk {chunk.index}\n\n{chunk.content}")) for idx,chunk in enumerate(chunks) ])
@@ -944,7 +1008,7 @@ def _(chunks, mo):
     return (chunk_carousel,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(chunks, mo):
     extraction_chunk_limit_slider = mo.ui.slider(
         start=0,
@@ -957,7 +1021,7 @@ def _(chunks, mo):
     return (extraction_chunk_limit_slider,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, mo, run_delete_neo4j, run_test_neo4j):
     db_ok = False
     db_line = "_not tested yet..._"
@@ -973,7 +1037,7 @@ def _(app, mo, run_delete_neo4j, run_test_neo4j):
     return (db_line,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(app, mo, run_test_dspy, run_test_genai):
     lm_ok = False
     lm_line = "_not tested yet..._"
@@ -989,7 +1053,7 @@ def _(app, mo, run_test_dspy, run_test_genai):
     return (lm_line,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(
     db_line,
     doc,
@@ -1030,7 +1094,7 @@ def _(
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _():
     import marimo as mo
     import nest_asyncio

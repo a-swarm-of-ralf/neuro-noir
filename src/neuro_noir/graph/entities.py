@@ -189,3 +189,38 @@ def search_by_profile(
     n: int = 10,
 ) -> list[tuple[Entity, float]]:
     return search(driver, embedding, n, index_name="entity_profile_embedding_vx")
+
+
+def find_by_id(driver: Driver, entity_id: int) -> Entity | None:
+    with driver.session() as session:
+        record = session.run("MATCH (e:Entity {entity_id: $entity_id}) RETURN e", {"entity_id": entity_id}).single() 
+        if record is None:
+            return None
+        return record_to_entity(dict(record["e"]))
+    
+NEXT_ENTITY_ID_QUERY = """
+MATCH (e:Entity)
+RETURN e
+ORDER BY e.id
+SKIP $offset
+LIMIT 1
+"""
+
+COUNT_ENTITIES_QUERY = """
+MATCH (e:Entity)
+RETURN count(e) AS total_entities
+"""
+
+def find_next(driver: Driver, offset: int = 0) -> Entity | None:
+    with driver.session() as session:
+        record = session.run(NEXT_ENTITY_ID_QUERY, {"offset": offset}).single()
+        if record is None:
+            return None
+        return record_to_entity(dict(record["e"]))
+    
+def count(driver: Driver) -> int:
+    with driver.session() as session:
+        record = session.run(COUNT_ENTITIES_QUERY).single()
+        if record is None:
+            return 0
+        return record["total_entities"]
